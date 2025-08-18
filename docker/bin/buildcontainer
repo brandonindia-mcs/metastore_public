@@ -197,7 +197,7 @@ for img in ${list[@]};do
   LOGMSG="Built $img with tags $TAGS"
   TMPDIR=/tmp
 
-  cp $DOCKERFILE ${DOCKER_FILE_HOME}/dockerstore/${DOCKERFILE}.${taglist}
+  cp $DOCKERFILE ${DOCKER_FILE_HOME}/docker.master/${DOCKERFILE}.${taglist}
   # COPY DOCKERFILE TO TMP DIRECTORY
   cp $DOCKERFILE ${TMPDIR}/${DOCKERFILE}.${STAMP}${LABEL}\
     && echo -e \\n# $(date):\\npushd \$SECURE_ASSETS/..\\n# Command: ${RUNCOMMAND}${X}\\n#\\t -f ${TMPDIR}/${DOCKERFILE}.${STAMP}${LABEL} .\\npopd\\n# $LOGMSG\
