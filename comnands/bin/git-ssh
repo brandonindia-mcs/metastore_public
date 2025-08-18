@@ -1,0 +1,6 @@
+#!/bin/sh
+
+#WORKS IN COMBINATION WITH GIT_SSH SESSION & [SSH] CLAUSE FROM GBL CONFIG
+#https://superuser.com/questions/232373/how-to-tell-git-which-private-key-to-use
+ssh -i $(git config --get ssh.identity) -F /dev/null -p 22 $*
+

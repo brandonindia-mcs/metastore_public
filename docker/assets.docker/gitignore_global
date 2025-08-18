@@ -1,0 +1,76 @@
+# ALL DIRECTORIES NAMED:
+target/
+.settings/
+ignored/
+ignore/
+*ignore*/
+scratch/
+*scratch*/
+git_clone/
+**/.settings/*
+**/.vscode/*
+**/.vs/*
+
+# ALL DIRECTORIES NAMED:
+target/
+.settings/
+ignored/
+ignore/
+*nogit*/
+*ignore*/
+scratch/
+*scratch*/
+git_clone/
+.*-env*/
+
+# ALL FILES NAMED:
+.DS_Store
+.project
+.classpath
+ignored
+ignore
+*.tmp
+*.scratch
+scratch
+*.swp
+.azure
+.vscode-server
+**/*nogit*
+*.code-workspace
+*.scratch.*
+scratch/
+**/.secure/
+**/.secure
+
+.classpath
+.project
+buildNumber.properties
+LocalSequenceGenerator.properties
+bash_history
+*.pem
+*.pub
+*.bin
+**/.secure/
+**/.secure
+**/*_ignore_*
+
+# IGNORE WHATEVER AT THIS TREE ROOT
+/SOMEDIR
+/SOMEFILE
+
+# ALL FILES NAMED:
+.DS_Store
+.project
+.classpath
+ignored
+ignore
+*.tmp
+*nogit*
+*.scratch
+scratch
+*.swp
+
+
+# DON'T IGNORE
+!.gitignore
+!gitignore

@@ -1,0 +1,41 @@
+#!/bin/bash
+. ~/.bash_functions
+
+for v in $(docker volume ls|grep -v -E '[a-z0-9]{64}'|grep -v -E '^DRIVER');do MOUNTS+=" -v $v:/mnt/$v";done
+
+echo 'alias ls="/bin/ls -lA --color=auto"'
+
+if [ $# -eq 0 ];then
+### ALL MOUNTS
+docker run --name devol --rm -it\
+ $MOUNTS\
+ $*\
+ --workdir /mnt\
+ seed:minimal
+# docker exec -it devol /bin/bash
+
+
+else
+### ONE MOUNT
+docker run --name vol_$1 --rm -it\
+ -v $1:/$1\
+ --workdir /$1\
+ --user root\
+ seed:minimal
+# docker exec -it vol_$1 /bin/bash
+
+# CMD="docker run --name $1 --rm -id\
+#  -v $1:/$1\
+#  --workdir /$1\
+#  -e PS1=\"[\w\$ \"]\
+#  --user 1000\
+#  \
+#  seed:minimal"
+# CMD+=" 2>/dev/null || echo container exists"
+# # echo $CMD
+# guid=$(eval $CMD)
+# docker cp $(echo|cat >/tmp/.bashrc <<<'export PS1="\w$ " && alias ls="/bin/ls -AltrG"' && echo /tmp/.bashrc) $guid:/.bashrc 2>/dev/null
+# docker exec -it $guid /bin/bash 2>/dev/null || docker exec -it $1 /bin/bash
+# # echo -n removing container... && docker stop $guid&
+# # $(docker stop $guid >/dev/null)&
+fi

@@ -1,0 +1,6 @@
+!gitprompt-root.sh
+!gitignore_global
+!bashrc.uuid
+
+*id_key*
+*.tar.gz

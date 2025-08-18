@@ -1,0 +1,8 @@
+#!/bin/sh
+ssh -i $(git config --get ssh.identity) -F /dev/null -p 22 $*
+
+#SET GLOBAL: git config --global ssh.identity ~/.ssh/default_id_rsa
+#SET PER REPO git config --local ssh.identity ~/.ssh/any_other_id_rsa
+
+#WORKS IN COMBINATION WITH GIT_SSH SESSION & [SSH] CLAUSE FROM GBL CONFIG
+#https://superuser.com/questions/232373/how-to-tell-git-which-private-key-to-use

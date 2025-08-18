@@ -1,0 +1,209 @@
+#!/bin/bash
+(
+function usage       { echo $(basename $0) usage: $* ; }
+function log         { grey "`basename "$0" 2>/dev/null`($1):" && echo -e "${@:2}"; }
+function normal      { changetext 0 0 0 $*; }
+function green       { changetext 0 34 42 $* ; }
+function red         { changetext 1 37 41 $* ; }
+function yellow      { changetext 1 33 40  $* ; };
+function blue        { changetext 1 36 44 $*; }
+function blue_text   { changetext 1 34 40 $*; }
+function cyan        { changetext 0 37 46 $*; }
+function grey        { changetext 1 37 100 $* ; }
+function changetext { printf "\e[$1;$2;$3m${*:4}\e[0m " ; }
+function pass        { green "$(date "+%Y-%m-%d %H:%M:%S") PASS($1):"  && echo "${@:2}" && echo; }
+function fail        { red   "$(date "+%Y-%m-%d %H:%M:%S") FAIL($1):"  && echo "${@:2}" && echo; }
+function abort       { red   "$(date "+%Y-%m-%d %H:%M:%S") ABORT($1):" && echo "${@:2}" && echo; }
+function abort_hard  { red   "$(date "+%Y-%m-%d %H:%M:%S") ABORT($1):" && echo -e "${@:2}" && exit 1; } # read -p "press CTRL+C" && exit 1; }
+function warn        { wern  "$(date "+%Y-%m-%d %H:%M:%S") WARN($1):"  && echo "${@:2}" && echo; }
+function wern        { changetext 0 31 43 $* ; }
+function beforefirst    { if [ -z $1 ];then usage "\`${FUNCNAME[0]} ls-complex-way -\` # RETURNS ls" && return 1;fi; echo ${1%%$2*} ; } # ex: beforefirst xxxxx-yy - # RETURNS xxxxx
+function getmiddle      { if [ -z $1 ];then usage "\`${FUNCNAME[0]} - <<<complex-ls-way\` # RETURNS ls" && return 1;fi; cut -d$1 -f2; } # ex: getmiddle - <<<"xxx-YYY-zzz" # RETURNS YYY
+function afterlast      { if [ -z $1 ];then usage "\`${FUNCNAME[0]} - <<<complex-way-ls\` # RETURNS ls" && return 1;fi; sed -e "s#.*$1\(\)#\1#"; } # RETURNS WHATEVER IS *AFTER THE LAST* ARG1 ex: $(afterlast - <<<complex-way-of-ls)
+function get_keyname_v3 { if [ $# -eq 1 ];then echo $1|tr '[:upper:]' '[:lower:]'; fi ; }
+function get_keyname_v2 { if [ $# -eq 1 ];then echo ${1,,}; fi; }
+function get_keyname { get_keyname_v3 $*; }
+function get_production_keyname { get_keyname $1 ;}
+function get_integration_keyname { get_keyname $1 ;}
+function get_application_keyname { get_keyname $1 ;}
+function get_developer_keyname { get_keyname $1 ;}
+function log_success { green "`basename "$0" 2>/dev/null`($1):" && echo "${@:2}"; }
+function log_s       { log_success $*; }
+echo $(basename $0) $*
+RUNCOMMAND="$(basename $0) $*"
+set -e
+__DEBUG__=false
+
+seedcontainers="seed"
+critical_values=(APPLICATION CLOGIN CUSER DOCKERHUB DOCKERHUBUSER DOMAIN HOMEDIR LOCALHOMESAFE KEYNAME KEYPATH SECURE_ASSETS TAGS)
+function print_critical_values { if $__DEBUG__;then log DEBUG Critical Values: $(blue_text $*) && for v in ${critical_values[@]};do printf "%20s %s\n" $v: ${!v};done;fi ; }
+
+KEY=nokey-id_rsa
+for i in "$@"; do
+case $i in
+-t)
+# shift && CUSTOM_TAG+=("$1") && shift
+shift && CUSTOM_TAG+=("$(echo $1|tr @ -|tr . -)") && shift
+;;
+-nocache|--no-cache)
+shift && NOCACHE="--no-cache" && log $LINENO $NOCACHE
+;;
+--parm=*)
+PARMFILE+=("${i#*=}") && shift
+;;
+--tag=*)
+CUSTOM_TAG+=("${i#*=}") && shift
+;;
+--key=*)
+KEY=("${i#*=}") && shift
+;;
+-debug)
+__DEBUG__=true && shift
+;;
+-*)
+abort_hard $(basename $0) illegal argument: $i
+;;
+esac
+done
+
+### ADD A DATESTAMP TAG - UNUSED 2025-01-25 BINDIA
+# CUSTOM_TAG+=$(date +%m%d%y)
+
+function do_build {
+DOKERHUB=${DOCKERHUB:=isdeagplatformengineeringd.azurecr.io}
+DOCKERHUBUSER=realtime
+DOMAIN=microsoft.com
+
+for APP in ${APPS_LIST[@]};do
+
+unset TAGS BUILDARGS LABEL
+print_critical_values top of do_build
+log $LINENO $APP
+phase=$(beforefirst $APP -)
+case $phase in
+production) # INTENDED TO SET UP SECURITY & AUTHENTICATION FOR SECURE SOURCE CODE DOWNLOAD
+  log $LINENO found $phase for APP: $APP
+  if [ -z $CUSER ];then CUSER=$(afterlast - <<<$APP) && warn $LINENO setting CUSER: $CUSER;fi
+  CLOGIN=$CUSER@$DOMAIN
+  KEYNAME=$(get_production_keyname $APP)
+  KEYPATH=${SECURE_ASSETS}/$(get_production_keyname $APP)
+  ETC="--secret id=$KEYNAME,src=$KEYPATH"
+
+  print_critical_values leaving $phase catch
+;;
+integration) # INTENDED TO SET UP SECURITY & AUTHENTICATION FOR SECURE SOURCE CODE DOWNLOAD
+  log $LINENO found $phase for APP: $APP
+  if [ -z $CUSER ];then CUSER=$(afterlast - <<<$APP) && warn $LINENO setting CUSER: $CUSER;fi
+  CLOGIN=$CUSER@$DOMAIN
+  KEYNAME=$(get_integration_keyname $APP)
+  KEYPATH=${SECURE_ASSETS}/$(get_integration_keyname $APP)
+  ETC="--secret id=$KEYNAME,src=$KEYPATH"
+
+  print_critical_values leaving $phase catch
+;;
+build|deploy) # SECURE DOWNLOAD OF APPLICATION CODE
+  log $LINENO found $phase for APP: $APP
+  if [ -z $CUSER ];then CUSER=$(afterlast - <<<$APP) && warn $LINENO setting CUSER: $CUSER;fi
+  if [ -z $APPLICATION ];then APPLICATION=$(getmiddle - <<<$APP) && warn $LINENO setting APPLICATION: $APPLICATION;fi
+  CLOGIN=$CUSER@$DOMAIN
+  ETC="--build-arg APPLICATION=$APPLICATION"
+
+  print_critical_values leaving $phase catch
+;;
+app|application|entry) # INTENDED TO BUILD ENTRYPOINT CONTAINERS
+  log $LINENO found $phase
+  print_critical_values leaving $phase catch
+;;
+*)
+  log $LINENO found nothing special for APP: $APP
+  CUSER=developer && warn $LINENO setting CUSER: $CUSER
+  CLOGIN=$CUSER@$DOMAIN
+  if [ -n "$KEY" ];then k=$KEY;else k=$CUSER;fi
+  log $LINENO calling: "\`get_keyname $k\`"
+  KEYNAME=$(get_keyname $k)
+  log $LINENO returned $KEYNAME
+  KEYPATH=${SECURE_ASSETS}/${KEYNAME}
+  ETC="--secret id=$KEYNAME,src=$KEYPATH"
+
+# log $LINENO KEY:$KEY
+# log $LINENO k:$k
+# log $LINENO CUSER:$CUSER
+# log $LINENO KEYNAME:$KEYNAME
+# log $LINENO KEYPATH:$KEYPATH
+# read x
+log $LINENO Using key $KEYNAME for $CUSER
+### pause_for_effect2 "${FUNCNAME[0]}:default" LINENO APP KEYNAME KEYPATH CUSER CLOGIN
+  print_critical_values leaving nothing special catch
+;;
+esac
+
+if [ -z "$ETC" ];then abort_hard missing ETC security key information;fi
+DOCKERFILE=Dockerfile.$APP
+if [ ! -f $DOCKERFILE ];then log $LINENO $DOCKERFILE doesn\'t exist && exit9;fi
+
+# if [ $CUSTOM_TAG ];then for t in ${CUSTOM_TAG[@]};do TAGS+=" -t $APP:$t -t $DOCKERHUB/$APP:$t";done;fi
+# for t in ${CUSTOM_TAG[@]};do echo $t;done && read x
+print_critical_values building tags
+# DO CUSTOM TAGGING & DATE TAGGING
+# USE THE FIRST TAG AS "PRIMARY" LABEL
+taglist=()
+for t in ${CUSTOM_TAG[@]};do taglist+=$t && log $LINENO APP $APP, t $t && TAGS+=" -t $APP:$t -t $APP:$t-$(date +%Y%m%d)" && if [ -z "$LABEL" ];then LABEL="-$t";fi;done
+# for t in ${CUSTOM_TAG[@]};do log $LINENO APP $APP, t $t && TAGS+=" -t $DOCKERHUB/$APP:$t -t $DOCKERHUB/$APP:$t-$(date +%Y%m%d)";done
+# if [ -n "$TAGS" ];then TAGS+=" -t $DOCKERHUB/$APP:latest";fi
+print_critical_values leaving do_build
+# for t in ${taglist[@]};do echo TAG IS $t;done
+log $LINENO building from $DOCKERFILE\\ngetting parameters: $APP $PARMFILE
+. ~/devnet/metastore/shell/get_runargs.sh $APP $PARMFILE
+
+CMD="\\n
+DOCKER_BUILDKIT=1 docker build --rm $NOCACHE\\n
+  --build-arg BUILD_DATE=$(date +%Y%m%d)
+  --build-arg THISUSER=$CUSER\\n
+  --build-arg HOMEDIR=$HOMEDIR\\n
+  --build-arg LOCALHOMESAFE=$LOCALHOMESAFE\\n
+  --build-arg gitlogin=$CLOGIN\\n
+  --build-arg gituser=$CUSER\\n
+  --build-arg SK=$KEYNAME\\n$BUILDARGS
+  $ETC\\n
+  -t $APP\\n
+  $TAGS\\n
+  -f $DOCKERFILE ."
+
+log $LINENO "$CMD"|sed "s/\\\\n//g" && if ! $__DEBUG__;then eval $(echo "$CMD"|sed "s/\\\\n//g") && log_s $APP && list+=($APP);fi
+# DATE TAG LATEST
+docker tag $APP $APP:$(date +%Y%m%d)
+done # SEE TOP @ LINE 76
+}
+# END do_build
+
+# start main
+if [ -z $SECURE_ASSETS ];then abort_hard $LINENO define SECURE_ASSETS path\\n\\tEX: export SECURE_ASSETS=docker/assets.docker;fi
+if [ ! -d $SECURE_ASSETS ];then abort_hard $LINENO bad path for SECURE_ASSETS: $SECURE_ASSETS;fi
+STAMP=$(date +%Y%m%dT%H%M%S)
+DOCKER_FILE_HOME=~/devnet/metastore/docker
+HOMEDIR=/home
+LOCALHOMESAFE=\\/home\\/${CUSER}
+APPS_LIST=$*
+if [ $# -eq 0 ]; then APPS_LIST=$seedcontainers;fi
+list=()
+if [ -d ${DOCKER_FILE_HOME} ];then pushd ${DOCKER_FILE_HOME} >/dev/null # && log $LINENO inside ${DOCKER_FILE_HOME}
+print_critical_values calling do build
+do_build
+fi
+
+X=$(echo "$CMD"|sed "s/\\\\n/\\\\\\\\\\\\n/g")
+# print summary
+for img in ${list[@]};do
+  LOGMSG="Built $img with tags $TAGS"
+  TMPDIR=/tmp
+
+  cp $DOCKERFILE ${DOCKER_FILE_HOME}/dockerstore/${DOCKERFILE}.${taglist}
+  # COPY DOCKERFILE TO TMP DIRECTORY
+  cp $DOCKERFILE ${TMPDIR}/${DOCKERFILE}.${STAMP}${LABEL}\
+    && echo -e \\n# $(date):\\npushd \$SECURE_ASSETS/..\\n# Command: ${RUNCOMMAND}${X}\\n#\\t -f ${TMPDIR}/${DOCKERFILE}.${STAMP}${LABEL} .\\npopd\\n# $LOGMSG\
+  \
+    >>${TMPDIR}/${DOCKERFILE}.${STAMP}${LABEL} && log $LINENO ${TMPDIR}/${DOCKERFILE}.${STAMP}${LABEL}\
+    && log $LINENO $LOGMSG
+done
+
+)

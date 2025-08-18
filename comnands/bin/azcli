@@ -1,0 +1,157 @@
+#!/bin/bash
+. ~/.bash_functions
+DOCKER_FILE_HOME=~/metastore/docker
+image=azcli
+unset hsh
+unset ary_keys
+unset ary_vals
+
+# function start_docker {
+# DOCKER_EXE="/mnt/c/Program Files/Docker/Docker/Docker Desktop.exe"
+# if ! docker >/dev/null 2>&1;then echo "Starting Docker Desktop..."
+# $("$DOCKER_EXE")&
+# fi
+
+# while ! docker >/dev/null 2>&1;do echo waiting... && sleep 6;done
+# echo "Docker Desktop is running"
+# }
+start_docker # EXPORTED FROM .bashrc
+
+function do_debug_print {
+    debug=( ARGS IS_TEMP _DEBUG_ profile containerprofile hostname parameter_file IMAGENAME cname )
+    echo -e $CMD\\n
+    for i in "${debug[@]}";do
+        echo ${i}: ${!i}
+    done
+    echo -e looking for parameter file... && ls ${PARAMETER_PATH}/${image}-${profile}.parms
+}
+
+function azcli {
+CMD="docker start ${cname} 2>/dev/null && docker exec ${ARGS} -it ${cname} /bin/bash \
+|| echo Running fresh: ${cname} \
+&& docker run --privileged --name ${cname} -it \
+    ${RUNARGS} \
+    --hostname $hostname \
+    -e HISTFILE=${REMOTEHOME}/history/${IMAGENAME}.history \
+    -e PS1=\"\[\\\033[1;32m\]\u\[\\\033[0m\]@\[\\\033[1;31m\]\h \[\\\033[0;37m\]\W\[\\\033[1;301m\]$\[\\\033[0m\] \"
+    -v ~/gitstore:${REMOTEHOME}/gitstore \
+    -v codestore:${REMOTEHOME}/codestore \
+    -v keystore:${REMOTEHOME}/.ssh \
+    -v keystore:${REMOTEHOME}/keystore \
+    -v history:${REMOTEHOME}/history \
+    -v dotnet:${REMOTEHOME}/.dotnet \
+    -v microsoft:${REMOTEHOME}/.microsoft \
+    -v ~/Downloads:${REMOTEHOME}/Downloads \
+     \
+    ${DNS} \
+    ${ARGS} \
+    ${IMAGE} 2>/dev/null"
+}
+
+p_list=( "$@" )
+for i in "${!p_list[@]}";do
+if [[ ${p_list[$i]} = "-b" ]]; then _DEBUG_=true && echo -e debug ON;fi
+if [[ ${p_list[$i]} = "-p" ]]; then profile=${p_list[$(expr $i + 1)]};fi
+done
+
+PARAMETER_PATH=${DOCKER_FILE_HOME}/build-parameters
+parameter_file=${image}.parms
+# echo ${PARAMETER_PATH}/${image}-${profile}.parms
+if [[ ! -z $profile && -f ${PARAMETER_PATH}/${image}-${profile}.parms ]] ;then parameter_file=${image}-${profile}.parms;fi
+if [ $_DEBUG_ ]; then do_debug_print; fi
+if [ -f ${PARAMETER_PATH}/$parameter_file ]; then
+    # BUILD TWO ARRAYS FROM .parms  FILES
+    ary_keys=($(awk -F= '{print $1}' ${PARAMETER_PATH}/$parameter_file))
+    ary_vals=($(awk -F= '{print $2}' ${PARAMETER_PATH}/$parameter_file))
+    # MAKE SURE ARRAY COUNTS ARE EQUAL
+    # echo ${#ary_keys[@]}
+    # echo ${#ary_vals[@]}
+    if [ ${#ary_keys[@]} -ne ${#ary_vals[@]} ];then echo parameter file is mismatched - do keys or values have spaces? && exit $LINENO; fi
+    # DECLARE ASSOCIATIVE ARRAY
+    declare -A hsh
+    # POPULATE ASSOCIATIVE ARRAY
+    i=0 && while [ $i -lt ${#ary_keys[@]} ]; do hsh[${ary_keys[$i]}]=${ary_vals[$i]} && i=$(expr $i + 1); done
+    ## BUILD ARGUMENT LIST FROM ASSOCIATIVE ARRAY
+    for key in "${!hsh[@]}"; do #echo "$key is set to ${hsh[$key]}"
+        RUNARGS+=" -e $key=${hsh[$key]}"
+    done
+#    echo "docker build --rm -f ${RUNARGS} ${DOCKER_FILE_HOME}/Dockerfile.${image} -t ${IMAGE} ${DOCKER_FILE_HOME}"
+    # if [ $_DEBUG_ ];then echo "using run args: ${RUNARGS}";fi
+fi
+
+#docker run --rm -it mcr.microsoft.com/azure-cli
+
+IMAGENAME=$(basename "$0")
+IMAGE=contosorealtime/${IMAGENAME}
+REMOTEHOME=${REMOTEHOME:=/root}
+hostname=${IMAGENAME^^}
+if [ ! -z $profile ];then hostname+="-$profile";fi
+DNS="--dns 192.168.65.5 --dns 8.8.8.8 --dns 8.8.4.4"
+for i in "$@"; do
+case $i in
+--dns)
+DNS="--dns $2"
+shift && shift
+;;
+-d) # RUN AS DOCKER DAEMON
+ARGS+=" -d"
+shift
+;;
+-n) # CUSTOM CONTAINER NAME
+cname=${IMAGENAME^^}-$2
+shift && shift
+;;
+-tmp|--tmp) # TEMP CONTAINER
+IS_TEMP=true
+shift
+;;
+-p) # PROFILE IS USED AT THE TOP # LOOK FOR PROFILE
+shift && shift
+;;
+-b) # DEBUG IS USED AT THE TOP
+shift
+;;
+--diligent-owl) # 
+containerprofile=${i#*--}
+if [ ! $_DEBUG_ ]; then ${0} -p $profile -n $containerprofile -d; exit; fi
+;;
+--bicep-sandbox) # 
+containerprofile=${i#*--}
+if [ ! $_DEBUG_ ]; then ${0} -p $profile -n $containerprofile -d; exit; fi
+;;
+--datastrat) # 
+containerprofile=${i#*--}
+if [!  $_DEBUG_ ]; then ${0} -p $containerprofile -n $containerprofile -d; exit; fi
+;;
+--vsbri) # 
+containerprofile=${i#*--}
+if [ ! $_DEBUG_ ]; then ${0} -p $containerprofile -n $containerprofile -d; exit; fi
+;;
+esac
+done
+
+if [ $IS_TEMP ];then ARGS=" --rm" && cname=azcli-tmp-$(expr $(docker ps -f name=azcli-tmp|grep -iE azcli[_]?[0-9]?|wc -l) + 1)
+else cname=${cname:=${IMAGENAME^^}};fi
+
+echo Checking for new image...
+docker pull mcr.microsoft.com/azure-cli
+CMD="docker build --rm
+    -f ${DOCKER_FILE_HOME}/Dockerfile.${IMAGENAME}
+    -t ${IMAGE}
+    ${DOCKER_FILE_HOME}"
+
+if [ $_DEBUG_ ]; then
+    echo -e CMD is\\n$CMD
+else
+    log $LINENO "$CMD"|sed "s/\\\\n//g" 
+    eval $(echo "$CMD"|sed "s/\\\\n//g")
+    # eval $CMD
+fi
+
+azcli
+
+if [ $_DEBUG_ ]; then
+    do_debug_print
+else
+    eval $CMD
+fi

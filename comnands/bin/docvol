@@ -1,0 +1,245 @@
+#!/bin/bash
+. ~/.bash_functions
+
+function usage {
+  echo -e "$(basename ${0}):${*}" && exit 1
+}
+
+### -remove|-delete|-r|-d)
+function do_remove_vol {
+  for v in "${VOL[@]}";do
+    if [ $FORCE ];then docker volume rm ${v} && continue;fi
+    get_size ${v}
+    if $(yesno "remove volume $(blue ${v})");then
+      if docker volume rm ${v} >/dev/null;then log_s $LINENO removed volume ${v};fi
+    else echo -en \\t\\t && log_e $LINENO skipped ${v} && echo;fi
+  done
+}
+
+### -create|-c)
+function do_create_vol {
+  for v in "${VOL[@]}";do
+    local s=$(docker volume create ${v}) && success $LINENO "volume ${s} exists"\
+      && sleep 2 && ${0} -o ${s}
+  done
+  return 0
+  # local s=$(docker volume create ${VOL}) && success $LINENO "volume ${s} exists"\
+  # && sleep 2 && ${0} -o ${s}\
+  # && return 0
+}
+
+### -list|-l)
+function do_list {
+    if [ -z ${VOL} ];then docker volume ls|grep -v -E --color '[a-z0-9]{64}' && return 0;fi
+    if ! docker volume ls|grep -v -E '[a-z0-9]{64}'|awk '{print $2}'|grep -E -w --color ^${VOL}$ 2>/dev/null; then
+    # docker volume ls|sort && echo -e "\n${VOL} not found"; fi
+      # log_e $LINENO ${VOL} not found && 
+      return 1
+      # docker volume ls|grep -v -E '[a-z0-9]{64}'|sort && echo
+    fi
+}
+
+### -inspect|-i)
+function run_inspect_container {
+  if [ ${VOL} ]; then local ARRAY=($(docker volume inspect ${VOL}|grep -i mountpoint|sed 's/"//g; s/,//g;')); fi
+  local VOLPATH=${ARRAY[1]} && if [ ! ${VOLPATH} ];then VOLPATH=/var/lib/docker/volumes; fi
+  echo -e running Debian container, find volumes:"\t"cd ${VOLPATH}
+  docker run --privileged --rm --name debian -it --pid=host debian nsenter -t 1 -m -u -n -i sh
+}
+
+### -size|-s)
+function get_size {
+  local s=$(docker volume inspect $1 2>/dev/null)
+  local ARRAY=($(echo -e "${s}"|grep -i mountpoint|sed 's/"//g; s/,//g;';))
+  if [ ${#ARRAY[@]} -gt 0 ]; then
+    echo -e "${s}\ngetting size of ${ARRAY[0]}..."
+    docker run --rm --privileged --pid=host debian nsenter -t 1 -m -u -n -i /usr/bin/du -d 0 -h ${ARRAY[1]}
+  else usage volume not found: $1; fi
+  # exit 0
+}
+
+### -owner|-o)
+function set_owner {
+  CMD="docker run --privileged --rm -it --pid=host debian nsenter -t 1 -m -u -n -i\
+    sh -c \"/bin/chown $OWNER:$OWNER /var/lib/docker/volumes/$VOL/_data\""
+  # echo $CMD
+  eval $CMD
+
+}
+
+### -network|-n)
+function do_network {
+  docker network ls
+}
+
+### -backup|-b)
+function do_backup {
+  . ~/.bash_functions
+
+  for i in "$@"
+  do
+  case $i in
+  --dir=*)
+    local_dir=${i#*=}
+    if [ -d $local_dir ];then
+      pushd $local_dir && popd
+      log $LINENO local_dir not implemented\\nexiting with grace && exit 0
+    else abort $LINENO $local_dir not a directory && exit 1;fi
+    shift
+    ;;
+  esac
+  done
+
+
+  STMP=$(date +%Y-%m-%d-%H-%M-%S)
+  DATE=$(date +%Y-%m-%d)
+  BAKPATH=/tmp
+
+  for mnt in $*;do
+
+    ## THIS CREATES BACKUPS FOR ONE-OFF FILES
+    if [[ $mnt = local ]];then mnt=localbackup && collect_local_assets $mnt;fi
+
+    MOUNTS+=" -v $mnt:/mnt/$mnt";
+    TARFILE=volume.${mnt}.${STMP}.tar
+    local vm=backup-${mnt}-${STMP}
+    TAR="tar cvf ${BAKPATH}/${TARFILE} ${mnt}"
+    echo "Backing up docker volume ${mnt} to ${BAKPATH}/${TARFILE}"
+
+  BACKUPSTORE="/mnt/c/OneDrive - Microsoft/_volume_backup/volume.${mnt}"
+  if [ ! -d "$BACKUPSTORE" ];then warn $LINENO "creating directory: $BACKUPSTORE"
+    mkdir -p "$BACKUPSTORE"
+  fi
+
+    docker run --name $vm --rm -itd $MOUNTS --workdir /mnt ubuntu:20.04\
+        && docker exec ${vm} ${TAR} >/dev/null 2>&1\
+        && docker cp ${vm}:${BAKPATH}/${TARFILE} ${BAKPATH}/${TARFILE}\
+        && gzip -c ${BAKPATH}/${TARFILE} >"${BACKUPSTORE}/${TARFILE}.gz"\
+        && rm -rf ${BAKPATH}/${TARFILE}
+    echo -n Stopping: && docker stop $vm
+    if [ -f "${BACKUPSTORE}/${TARFILE}.gz" ];then success $LINENO "${BACKUPSTORE}/${TARFILE}.gz";fi
+    tar ztf "${BACKUPSTORE}/${TARFILE}.gz"
+  done
+
+}
+function collect_local_assets_all {
+  declare -A local assetmap
+  assetmap[".bashrc"]="$(/bin/ls -d ~)/.bashrc"
+  assetmap[".bash_functions"]="$(/bin/ls -d ~)/.bash_functions"
+  assetmap[".bash_history"]="$(/bin/ls -d ~)/.bash_history"
+  assetmap["compose-spec.json"]="$(/bin/ls -d ~)/compose-spec.json"
+
+  tar cf /tmp/dot_ssh.tar -C ~ .ssh/
+  tar rf /tmp/dot_ssh.tar -C ~/metastore docker/build-parameters
+  gzip -f /tmp/dot_ssh.tar
+  assetmap["dot_ssh.tar.gz"]="/tmp/dot_ssh.tar.gz"
+}
+function collect_local_assets {
+  declare -A local assetmap
+  assetmap["getpaswd"]="$(/bin/ls -d ~)/.secure/getpaswd"
+  assetmap["Cryptic-Entanglement.txt.enc"]="$(/bin/ls -d ~)/.secure/Cryptic-Entanglement.txt.enc"
+  assetmap["getpaswd_clean"]="$(/bin/ls -d ~)/.secure/getpaswd_clean"
+
+  local vm=$1
+  local mnt=$vm
+  docvol -c $mnt
+
+  docker run --name $vm --rm -itd -v $mnt:/mnt/$mnt --workdir /mnt ubuntu:20.04 && sleep 5
+  for k in ${!assetmap[@]};do echo copying docker ${assetmap[$k]} to $vm\
+    && /bin/ls -Al ${assetmap[$k]}\
+    && docker cp ${assetmap[$k]} $vm:/mnt/$mnt/$k
+  
+  done
+  docker stop $vm
+}
+function help {
+  MSG="
+    \tnetwork:  -n
+    \tlist:     -l [VOL]
+    \towner:    -o [VOL] <ID>
+    \tsize:     -s [VOL]
+    \tcreate:   -c [VOL]
+    \tbackup:   -b [VOL(S)]
+    \tinspect:  -i [VOL
+    \tremove:   -d [VOL]
+    "
+  usage "$MSG"
+}
+
+for i in "$@"
+do
+case $i in
+-inspect|-i)
+  shift
+  VOL="${1}" && INSPECT=1
+  shift
+  if [ ${INSPECT} ];  then run_inspect_container; fi
+  exit 0
+  ;;
+-network|-n)
+  NETWORK=$@ && NET=1
+  shift
+  if [ ! $# -eq 0 ];  then usage no args for network; fi
+  if [ ${NET} ];      then do_network; fi
+  exit 0
+  ;;
+-size|-s)
+  shift
+  VOL="${1}" && SIZE=1
+  shift
+  if [ ! ${VOL} ];    then usage need volume arg; fi
+  if [ ${SIZE} ];     then get_size $VOL; fi
+  exit 0
+  ;;
+-owner|-o)
+  shift
+  VOL="${1}" && OWNER=1000
+  if [ $2 ];then OWNER=$2 && shift; fi
+  shift
+  if [ ! ${VOL} ];    then usage need volume arg1; fi
+  if [ ${OWNER} ];     then set_owner $VOL $OWNER; fi
+  exit 0
+  ;;
+-f)
+  shift && FORCE=1
+;;
+-remove|-delete|-r|-d)
+  shift
+  if [ ! $# -gt 0 ];  then usage need volume arg; fi
+  for x in $@;do VOL+=( $x );done && RVOL=1
+  shift
+  if [ ${RVOL} ];     then do_remove_vol; fi
+  exit 0
+  ;;
+-list|-l)
+  shift
+  VOL="${1}" && LVOL=1
+  shift
+  if [ ${LVOL} ];     then do_list || exit $?; fi
+  ;;
+-create|-c)
+  shift
+  # VOL="${1}" && CVOL=1
+  for x in $@;do VOL+=( $x );done && CVOL=1
+  shift
+  if [ ! ${VOL} ];    then usage need volume arg; fi
+  if [ ${CVOL} ];     then do_create_vol; fi
+  exit 0
+  ;;
+-backup|-b)
+  shift
+  BVOL=1
+  if [ ${BVOL} ];     then do_backup $*; fi
+  exit 0
+  ;;
+-help|-h)
+  help
+  exit 0
+  ;;
+esac
+done
+
+# log $LINENO printing user volumes:
+# docker volume ls|grep -v -E '[a-z0-9]{64}'|sort && echo
+# help
+

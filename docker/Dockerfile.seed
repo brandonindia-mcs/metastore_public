@@ -1,0 +1,160 @@
+# buildcontainer -t minimal seed
+# buildcontainer --key=nokey-id_rsa -t minimal seed
+FROM mcr.microsoft.com/mirror/docker/library/ubuntu:22.04 AS rootcontainer
+CMD [ "/bin/bash" ]
+
+FROM rootcontainer AS utils0
+ENV DEBIAN_FRONTEND=noninteractive
+RUN apt-get -q update
+RUN apt-get -q install -y\
+  less\
+  ssh\
+  sudo\
+  vim
+
+RUN apt-get -q install -y\
+  jq\
+  wget\
+  unzip
+
+
+RUN echo '### ROOT STUFF ###\n\
+alias ls="ls -Altr --color=auto"\n\
+export PS1="\\[\\033[1;32m\\]\\u\\[\\033[0m\\]@\\[\\033[1;31m\\]\\h:\\[\\033[0;37m\\]\\w\\[\\033[1;301m\\]\\$\\[\\033[0m\\] "\n\
+export HISTTIMEFORMAT="%FT%T\t"\n\
+'\
+>>/root/.bashrc
+
+FROM utils0 AS utils1
+RUN sudo apt-get -q install -y\
+  ca-certificates\
+  apt-transport-https\
+  lsb-release\
+  gnupg
+FROM utils1 AS utils2
+RUN sudo apt-get -q install -y\
+  iputils-ping\
+  gnupg2\
+  software-properties-common\
+  gnupg-agent
+
+FROM utils2 AS azcli
+RUN sudo apt-get -q update
+RUN apt-get -q install -y\
+  curl
+RUN curl -sL https://packages.microsoft.com/keys/microsoft.asc\
+  | gpg --dearmor\
+  | sudo tee /etc/apt/trusted.gpg.d/microsoft.gpg > /dev/null
+RUN AZ_REPO=$(lsb_release -cs)\
+&& echo "deb [arch=amd64] https://packages.microsoft.com/repos/azure-cli/ $AZ_REPO main"\
+| sudo tee /etc/apt/sources.list.d/azure-cli.list\
+&& sudo apt-get -q update\
+&& sudo apt-get -q install -y\
+  azure-cli
+
+
+FROM azcli AS secureroot
+ARG gituser
+ARG HOMEDIR=$HOMEDIR
+ARG THISUSER=$gituser
+
+ARG USERHOME=/root
+
+ARG SKP=$USERHOME/.ssh
+ARG SK
+ARG FSK=$SKP/$SK
+
+RUN mkdir -p $SKP && chmod 700 $SKP
+RUN --mount=type=secret,id=$SK cat /run/secrets/$SK >$FSK
+COPY assets.docker/$SK.pub $SKP
+
+FROM secureroot AS rootidentity
+RUN mkdir -p /root/bin\
+  && echo "[ssh]\nidentity = $SKP/$SK" >>/root/.gitconfig
+
+
+FROM rootidentity AS sudoers
+RUN echo "ALL ALL=(ALL) NOPASSWD: ALL"\
+>>/etc/sudoers
+
+RUN echo '\n\
+### FUNCTIONS ###\n\
+#https://askubuntu.com/questions/558280/changing-colour-of-text-and-background-of-terminal\n\
+function changetext { printf "\e[$1;$2;$3m${*:4}\e[0m " ; }\n\
+function showcolors { for bg in `seq 0 9`; do for fg in `seq 0 9`; do echo -n "`expr $fg` `expr $bg`: " && color `expr $fg` `expr $bg` "this & that"; echo; done; done }\n\
+alias colors=showcolors\n\
+function showchangetext { for bg in 100 `seq 40 47`;do for fg in `seq 30 37`;do for txt in `seq 0 1`;do changetext $txt $fg $bg "$txt $fg $bg" && echo;done;done;done; }\n\
+function println     { printf "$1\n" "${@:2}"; }\n\
+function TIMESTAMP   { date +%Y-%m-%dT%T.%N; }\n\
+function color       { echo -n "$(tput setaf $1;tput setab $2)${3}$(tput sgr 0) "; }\n\
+function normal      { changetext 0 0 0 $*; }\n\
+function green       { changetext 0 34 42 $* ; }\n\
+function red         { changetext 1 37 41 $* ; }\n\
+function yellow      { changetext 1 33 40  $* ; }\n\
+function blue        { changetext 1 36 44 $*; }\n\
+function blue_text   { changetext 1 34 40 $*; }\n\
+function cyan        { changetext 0 37 46 $*; }\n\
+function grey        { changetext 1 37 100 $* ; }\n\
+function pass        { green "$(date "+%Y-%m-%d %H:%M:%S") PASS($1):"  && echo "${@:2}" && echo; }\n\
+function fail        { red   "$(date "+%Y-%m-%d %H:%M:%S") FAIL($1):"  && echo "${@:2}" && echo; }\n\
+# function abort       { red   "$(date "+%Y-%m-%d %H:%M:%S") ABORT($1):" && echo "${@:2}" && echo; }\n\
+# function abort_hard  { red   "$(date "+%Y-%m-%d %H:%M:%S") ABORT($1):" && echo "${@:2}, exiting..." && read -p "press CTRL+C" && exit 1; }\n\
+function abort       { red   "$(date "+%Y-%m-%d %H:%M:%S") ABORT($1):" && echo "${@:2}" && echo; }\n\
+function abort_hard  { red   "$(date "+%Y-%m-%d %H:%M:%S") ABORT($1):" && echo "${@:2}" && exit 1; } # read -p "press CTRL+C" && exit 1; }\n\
+function warn        { wern  "$(date "+%Y-%m-%d %H:%M:%S") WARN($1):"  && echo "${@:2}" && echo; }\n\
+function wern        { changetext 0 31 43 $* ; }\n\
+function log         { grey "`basename "$0" 2>/dev/null`($1):" && echo "${@:2}"; }\n\
+function log_success { green "`basename "$0" 2>/dev/null`($1):" && echo "${@:2}"; }\n\
+function log_s       { log_success $*; }\n\
+function success     { log_success $*; }\n\
+function log_error   { red "`basename "$0" 2>/dev/null`($1):" && echo "${@:2}"; }\n\
+function log_e       { log_error $*; }\n\
+function error       { log_error $*; }\n\
+function log_warn    { wern "`basename "$0" 2>/dev/null`($1):" && echo "${@:2}"; }\n\
+function log_w       { log_warn $*; }\n\
+function warn        { log_warn $*; }\n\
+function log_notify  { blue "`basename "$0" 2>/dev/null`($1):" && echo "${@:2}"; }\n\
+function notify      { blue "`basename "$0" 2>/dev/null`($1):" && echo "${@:2}"; }\n\
+function countdown   { max=$1 min=0 && for i in `seq $min $(expr $max - 1)`;do echo -n "`expr $max - $i`.. " && sleep 1;done; }\n\
+# function log_usage { yellow "`basename "$0"`($1):" && echo "${@:2}"; }# Recursion to handle each file or directory encountered\n\
+function push { pushd "$1" >/dev/null ; }\n\
+function pop { popd  >/dev/null ; }\n\
+function dumpvars { for v in $@;do echo -e \\t$v: ${!v}; done ; }\n\
+function pause_for_effect1 { pausing_for_effect "$* $(echo -e \\n\\n[press ENTER])" ; }\n\
+function pausing_for_effect { read -p "pausing for effect... $* " x; } #[press <ENTER>]\n\
+function pause_for_effect2 { echo -e \\n @ $1: && dumpvars ${@:2} && pausing_for_effect; }\n\
+function exit9 { echo "BEEEEEEEEEP $* - exiting" && exit 9; }\n\
+function noyes { yesno-N "$*"; }\n\
+function yesno { yesno-Y "$*"; }\n\
+function yesno-Y { read -p "$1 yes (default) or no: " && if [[ ${REPLY,,} = n ]] || [[ ${REPLY,,} = no ]]; then return 9; fi; return 0; }\n\
+function yesno-N { read -p "$1 yes or no (default): " && if [[ ${REPLY,,} = y ]] || [[ ${REPLY,,} = yes ]]; then return 0; fi; return 9; }\n\
+function unindex { $(which git) update-index --skip-worktree "${*}"; }\n\
+function reindex { $(which git) update-index --no-skip-worktree "${*}"; }\n\
+function toupper { echo ${*^^}; }\n\
+function gitwho { git config --get-regexp "user|identity"; }\n\
+'>>/etc/bash.bashrc
+
+RUN cat >>/etc/bash.bashrc <<EOF
+function usage { cat <<EOM
+\$(echo \$(basename \$0): \${FUNCNAME[0]})
+    \$*
+EOM
+}
+EOF
+
+RUN cat >>/etc/bash.bashrc <<EOF
+function usage { cat <<EOM
+\$(wern \$(basename \$0): \${FUNCNAME[0]})
+    \$*
+EOM
+}
+EOF
+
+FROM sudoers AS rootdir
+WORKDIR /root
+
+ARG BUILD_DATE
+LABEL build-date=${BUILD_DATE}
+RUN echo '\n\
+lsb_release -a\n\
+'>>/etc/bash.bashrc
