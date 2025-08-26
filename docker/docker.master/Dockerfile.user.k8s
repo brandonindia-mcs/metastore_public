@@ -152,5 +152,5 @@ RUN git config --global ssh.identity $SKP/$SK
 # Sat Aug 23 17:47:43 CDT 2025
 # Command: buildcontainer -t rubyrails user
 
-# Tue Aug 26 17:29:14 CDT 2025
-# Command: buildcontainer -t rubyrails user
+# Tue Aug 26 17:23:17 CDT 2025
+# Command: buildcontainer -t k8s user

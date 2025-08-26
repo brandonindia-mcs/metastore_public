@@ -1,0 +1,339 @@
+FROM seed:minimal AS top
+# FROM seed AS top
+RUN apt-get -q update
+# RUN apt install vim -y
+
+FROM top AS sudoers
+RUN apt -q install -y sudo
+RUN echo "ALL ALL=(ALL) NOPASSWD: ALL"\
+>>/etc/sudoers
+
+FROM sudoers AS settime
+RUN apt-get install apt-utils
+ARG THISUSER
+ARG HOMEDIR=/home
+ARG USERHOME=$HOMEDIR/$THISUSER
+ARG myname
+ARG myemail
+RUN DEBIAN_FRONTEND=noninteractive TZ=America/Chicago\
+  apt install -y --no-install-recommends\
+  tzdata
+RUN ln -fs /usr/share/zoneinfo/US/Central /etc/localtime\
+  && dpkg-reconfigure --frontend noninteractive tzdata
+
+FROM settime AS history
+ARG DOCKERENV=developer
+ENV DOCKERENV=$DOCKERENV
+RUN echo '### PERSIST HISTORY ###\n\
+if touch ${HOME}/history/${DOCKERENV}.history;then\n\
+  export HISTFILE="${HOME}/history/${DOCKERENV}.history"\\\n\
+  && green "Persistent history at:"\\\n\
+  && echo ${HISTFILE}\n\
+else grey History not persistent;fi\n\
+'\
+>>/etc/bash.bashrc
+VOLUME ["$USERHOME/devnet", "$USERHOME/.m2", "$USERHOME/history"]
+# -v ~/devnet:/home/developer/devnet\
+#  -v .m2:/home/developer/.m2\
+#  -v history:/home/developer/history\
+
+RUN echo 'function gitwho { git config --get-regexp "user|identity"; }\n\
+function unindex { git update-index --skip-worktree "${*}"; }\n\
+function reindex { git update-index --no-skip-worktree "${*}"; }\n\
+'\
+>>/etc/bash.bashrc
+##############################################################################
+
+FROM history AS asroot
+RUN sudo apt-get install -yq git
+FROM asroot AS useradd
+ARG gituser
+ARG HOMEDIR=$HOMEDIR
+ARG THISUSER=$gituser
+ARG USERHOME=$HOMEDIR/$THISUSER
+RUN groupadd -g 1000 $THISUSER
+RUN useradd -d $USERHOME -s /bin/bash -m $THISUSER -u 1000 -g 1000
+
+FROM useradd AS gituser
+ENV GIT_SSH=$USERHOME/bin/git-ssh
+ARG GIT_IGNORE_GLOBAL=$USERHOME/gitignore_global
+
+RUN mkdir -p $USERHOME/bin
+RUN cat <<EOF >$GIT_SSH
+#!/bin/sh
+ssh -i \$(git config --get ssh.identity) -F /dev/null -p 22 \$*
+EOF
+COPY assets.docker/gitignore_global $GIT_IGNORE_GLOBAL
+
+RUN chmod 755 $USERHOME/bin\
+  && chmod 755 $GIT_SSH\
+  && chmod 644 $GIT_IGNORE_GLOBAL
+
+ARG LOCALHOMESAFE
+ARG SAFEPATH=\\$HOMEDIR
+ARG SAFEHOME=$SAFEPATH\\/$THISUSER
+RUN chmod 600 $SKP/$SK 
+RUN chown -R $THISUSER:$THISUSER $USERHOME
+
+
+FROM gituser AS useridentity
+ARG THISUSER=$gituser
+ARG HOMEDIR=$HOMEDIR
+ARG USERHOME=$HOMEDIR/$THISUSER
+RUN mkdir -p $USERHOME/bin && echo "\
+[user]\n\
+  name = $myname\n\
+  email = $myemail\n\
+[core]\n\
+  excludesfile = ~/gitignore_global\n\
+  editor = vim\n\
+  autocrlf = true\n\
+[init]\n\
+  defaultBranch = master\n\
+[advice]\n\
+  statusHints = false\n\
+[ssh]\n\
+        identity = ~/.ssh/nokey-id_rsa"\
+>>$USERHOME/.gitconfig
+RUN chown 1000:1000 $USERHOME/.gitconfig
+RUN apt-get clean
+
+
+FROM useridentity AS gitssh
+RUN mkdir -p $USERHOME/bin\
+  && echo 'ssh -i $(git config --get ssh.identity) -F /dev/null -p 22 $*'\
+  >$USERHOME/bin/git-ssh
+RUN chmod u+x $USERHOME/bin/git-ssh
+
+FROM gitssh AS userpart1
+RUN echo '### USER CONTAINER IMAGE SPECIFIC 1 ###\n\
+alias azwho="az account show --query \"{Subscription:name,Type:user.type,User:user.name}\" -o table"\n\
+alias azp="az login --service-principal -u ${SUPER} -t ${AZTENANT} -p ${AZAZCERT} >/dev/null && azwho"\n\
+alias azt="az login -t ${AZTENANT} >/dev/null && az account set --subscription ${AZSUB} && azwho"\n\
+alias ls="ls -Altr --color=auto"\n\
+alias grep="grep --color=auto"\n\
+'\
+>>$USERHOME/.bashrc
+
+
+FROM userpart1 AS asuser
+USER $THISUSER
+WORKDIR $USERHOME
+RUN sudo add-apt-repository ppa:deadsnakes/ppa -y\
+  && sudo apt install python3-pip -yq\
+  && sudo update-alternatives --install /usr/bin/python python /usr/bin/python3 10\
+  && sudo update-alternatives --install /usr/bin/py py /usr/bin/python 10
+# RUN apt-get upgrade -y
+  ##############################################################################
+
+
+FROM asuser AS python312
+RUN sudo add-apt-repository ppa:deadsnakes/ppa -y\
+  && sudo apt -q update\
+  && sudo apt install -y python3.12\
+  && sudo apt install -y python3.12-venv\
+  && sudo update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.12 20
+RUN sudo apt-get install python3-pip -yq\
+ && python3.12 -m ensurepip --upgrade\
+  && pip install ipykernel --force-reinstall\
+  && pip install jupyter
+
+# FROM python312 AS python312bashrc
+# RUN cat >>~/.bashrc <<EOF
+# alias py=python
+# echo python: \$(py -V)
+# echo pip: \$(pip -V)
+# echo openssl \$(openssl version)
+# EOF
+
+
+FROM python312 AS base
+RUN sudo apt-get update -q
+
+### KEYGEN
+RUN mkdir -p ~/bin
+RUN cat >~/bin/keygen <<EOF
+#!/bin/bash
+(
+function usage { cat <<EOM
+\$(echo  \${FUNCNAME[0]})
+  \$*
+EOM
+}
+
+keyname=\$1
+for i in "\$@"; do
+case \$i in
+-h)
+usage \$(basename \$0) keyname \[-rsa\|-ed] \<-p\|-pass\> && exit
+;;
+-p|-pass)
+PASS=true && shift
+;;
+-rsa)
+enc="-t rsa -b 2048" && shift
+;;
+-ed25519)
+enc="-t ed25519" && shift
+;;
+-*)
+abort_hard ERROR illegal argument: \$i
+;;
+esac
+done
+if [ \$# -ne 1 ];then bash \$0 -h && exit;fi
+
+if \$PASS;then
+ssh-keygen -m PEM \$enc -f \$HOME/.ssh/\$keyname
+else
+ssh-keygen -m PEM \$enc <<<\$(echo \$HOME/.ssh/\$keyname)
+fi
+
+echo ~/.ssh/\$keyname.pub
+cat ~/.ssh/\$keyname.pub
+)
+EOF
+RUN sudo chmod u+x ~/bin/keygen
+
+### BASHRC ###
+RUN cat >>~/.bashrc <<EOF
+function usage { cat <<EOM
+\$(echo \$(basename \$0): \${FUNCNAME[0]})
+    \$*
+EOM
+}
+EOF
+
+
+RUN echo '\n\
+alias azwho="az account show --query \"{Subscription:name,Type:user.type,User:user.name}\" -o table"\n\
+alias azp="az login --service-principal -u ${SUPER} -t ${AZTENANT} -p ${AZAZCERT} >/dev/null && azwho"\n\
+alias azt="az login -t ${AZTENANT} >/dev/null && az account set --subscription ${AZSUB} && azwho"\n\
+alias ls="ls -Altr --color=auto"\n\
+alias grep="grep --color=auto"\n\
+'\
+>>~/.bashrc
+RUN echo '\n\
+function install_nvm() {\n\
+  echo && blue "------------------ INSTALL NVM ------------------" && echo\n\
+  git clone https://github.com/nvm-sh/nvm.git $NVM_DIR\n\
+  echo $([ -s $NVM_DIR/nvm.sh ] && . $NVM_DIR/nvm.sh && [ -s $NVM_DIR/bash_completion ] && . $NVM_DIR/bash_completion && nvm install --lts)\n\
+}\n\
+function installnode() {\n\
+  echo && blue "------------------ NODE VIA NVM ------------------" && echo\n\
+  cyan "Updating nvm:" && echo $(pushd ${HOME}/.nvm && git pull && popd || popd)\n\
+  if  ! command -v nvm >/dev/null; then\n\
+  [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"  # This loads nvm\n\
+  [ -s "$NVM_DIR/bash_completion" ] && . "$NVM_DIR/bash_completion"  # This loads nvm bash_completion\n\
+  fi\n\
+}\n\
+\n\
+function nodever() {\n\
+  if [ ! -z $1 ]; then\n\
+    nvm install ${1} >/dev/null 2>&1 && nvm use ${_} > /dev/null 2>&1\\n\
+      && nvm alias default ${_} > /dev/null 2>&1; blue "Node:"; node -v; else\n\
+    yellow "INFORMATIONAL: Use nodever to install or switch node versions:" && echo -e "\t usage: nodever [ver]"\n\
+    blue "Node:" && node -v\n\
+    blue "npm:" && npm -v\n\
+    blue "nvm:" && nvm -v\n\
+  fi\n\
+}\n\
+function getyarn() {\n\
+  echo && blue "------------------ YARN - NEEDS NVM ------------------" && echo\n\
+  if ! command -v yarn >/dev/null 2>&1; then grey "Getting yarn: " && npm install --global yarn >/dev/null; fi\n\
+}\n\
+\n\
+export NVM_DIR=~/.nvm\n\
+export NVM_HOME=${NVM_DIR}\n\
+export GIT_SSH=~/bin/git-ssh\n\
+export USERHOME=~\n\
+git config --global core.autocrlf false\n\
+git config --global core.longpaths true\n\
+\n\
+export PATH="~/bin:~/.local/bin:$PATH"\n\
+\n\
+\
+' >>~/.bashrc
+
+RUN echo "\
+function addkey {\n\
+echo 'eval \$(ssh-agent -s) && ssh-add \$(git config --get ssh.identity)'\n\
+}\n\
+"\
+>>~/.bashrc
+
+FROM base AS docker1
+RUN sudo apt install -y\
+  ca-certificates\
+  curl\
+  gnupg\
+  lsb-release\
+ && sudo mkdir -p /etc/apt/keyrings\
+ && curl -fsSL https://download.docker.com/linux/ubuntu/gpg |\
+    sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+RUN echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg]\
+  https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" |\
+    sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+
+FROM docker1 AS docker2
+RUN sudo apt update\
+  && sudo apt install -y\
+  docker-ce\
+  docker-ce-cli\
+  containerd.io\
+  docker-buildx-plugin\
+  docker-compose-plugin
+
+FROM docker2 AS dockertest
+RUN echo '\n\
+function dockertest() {\n\
+if [ -n "$1" ];then blue "######### NOT TESTING # DOCKER ##################" && return;fi\n\
+blue "######### TESTING # DOCKER ##################"\n\
+# cyan "Docker:"; docker --version\n\
+if ! docker info >/dev/null;then sudo service docker start && countdown 5;fi\n\
+echo Testing Docker...\n\
+if docker run --rm hello-world 2>/dev/null|grep -q "Hello from Docker!"\n\
+then pass "Docker Hello World"; else fail "Docker Hello World"\n\
+fi\n\
+}\n\
+# dockertest\n\
+umask 002\n\
+' \
+>>$USERHOME/.bashrc
+
+COPY assets.docker/git-prompt.sh $USERHOME/git-prompt.sh
+RUN cat >>~/.bashrc <<EOF
+. ~/git-prompt.sh
+PS1_ON="\[\033[0m\] on "
+PS1_COLON="\[\033[1;30m\]:"
+PS1_HOST="\[\033[0;34m\]\h"
+
+PS1_GITSSH="\[\033[0;34m\]\\\`basename \\\$(git config --get-regexp "ssh.identity"|tail -1|awk '{ print \\\$2 }')\\\`"
+PS1_GITREMOTE="\[\033[0;32m\]\\\`git remote -v 2>/dev/null|head -1 2>/dev/null|awk '{print \\\$2}'\\\`"
+PS1_DATE="\[\033[0;33m\]\`date +%Y-%m-%d\ %H:%M:%S\`"
+PS1_GITUSER="\[\033[0;34m\]\\\`git config --get-regexp \"user.email\"|tail -1|sed \"s/user\.email//\"\\\`"
+PS1_BRANCH="\[\033[0;32m\]\\\`__git_ps1\\\`"
+PS1_USER="\[\033[1;31m\]\u\[\033[0m\]"
+PS1_OS="\[\033[1;31m\]\$(grep -iE ^ID= /etc/os-release 2>/dev/null|awk -F= '{print \$2}'|awk '{print \$1}')\033[0;33m(\h)"
+PS1_WORK_DIR="\[\033[0;37m\]\w\[\033[1;36m\]\n$ \[\033[0m\]"
+if [ ! -z "\$VIRTUAL_ENV_PROMPT" ];then PS1_PY_ENV="\[\033[0;32m\](\`basename \$VIRTUAL_ENV\`) ";fi
+PS1="\n\[\033[0;33m\][\${PS1_GITSSH} \[\033[0m\]@ \${PS1_GITREMOTE}\[\033[0;33m\]]\n"
+PS1+="\${PS1_PY_ENV}\${PS1_DATE}\${PS1_GITUSER}\${PS1_BRANCH}\${PS1_ON}\${PS1_USER}@\${PS1_OS}\${PS1_COLON}\${PS1_WORK_DIR}"
+export PS1
+EOF
+
+RUN sed -i 's/HISTSIZE=1000/HISTSIZE=/' ~/.bashrc
+RUN sed -i 's/HISTFILESIZE=2000/HISTFILESIZE=/' ~/.bashrc
+
+RUN sudo usermod -a -G docker $(whoami);
+VOLUME ["/var/run/docker.sock"]
+VOLUME ["/var/lib/docker"]
+
+# Sat Aug 23 17:24:49 CDT 2025
+# Command: buildcontainer -t base user
+
+# Tue Aug 26 08:16:30 CDT 2025
+# Command: buildcontainer -t base user
+
+# Tue Aug 26 17:15:30 CDT 2025
+# Command: buildcontainer -t base user
