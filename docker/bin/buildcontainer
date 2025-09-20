@@ -29,6 +29,10 @@ function get_application_keyname { get_keyname $1 ;}
 function get_developer_keyname { get_keyname $1 ;}
 function log_success { green "`basename "$0" 2>/dev/null`($1):" && echo "${@:2}"; }
 function log_s       { log_success $*; }
+function pause {
+  read -p "Ctrl+C or exit" x
+  exit
+}
 echo $(basename $0) $*
 RUNCOMMAND="$(basename $0) $*"
 set -e
@@ -70,9 +74,10 @@ done
 # CUSTOM_TAG+=$(date +%m%d%y)
 
 function do_build {
-DOKERHUB=${DOCKERHUB:=isdeagplatformengineeringd.azurecr.io}
-DOCKERHUBUSER=realtime
-DOMAIN=microsoft.com
+# DOCKERHUB=${DOCKERHUB:=isdeagplatformengineeringd.azurecr.io}
+DOCKERHUB=${DOCKERHUB:=contosorealtime}
+DOCKERHUBUSER=contosorealtime
+DOMAIN=contosorealtime.com
 
 for APP in ${APPS_LIST[@]};do
 
@@ -142,16 +147,24 @@ DOCKERFILE=Dockerfile.$APP
 if [ ! -f $DOCKERFILE ];then log $LINENO $DOCKERFILE doesn\'t exist && exit9;fi
 
 # if [ $CUSTOM_TAG ];then for t in ${CUSTOM_TAG[@]};do TAGS+=" -t $APP:$t -t $DOCKERHUB/$APP:$t";done;fi
-# for t in ${CUSTOM_TAG[@]};do echo $t;done && read x
 print_critical_values building tags
+if [ ${#CUSTOM_TAG[@]} -eq 0 ];then CUSTOM_TAG+="latest";fi
 # DO CUSTOM TAGGING & DATE TAGGING
 # USE THE FIRST TAG AS "PRIMARY" LABEL
 taglist=()
 for t in ${CUSTOM_TAG[@]};do taglist+=$t && log $LINENO APP $APP, t $t && TAGS+=" -t $APP:$t -t $APP:$t-$(date +%Y%m%d)" && if [ -z "$LABEL" ];then LABEL="-$t";fi;done
-# for t in ${CUSTOM_TAG[@]};do log $LINENO APP $APP, t $t && TAGS+=" -t $DOCKERHUB/$APP:$t -t $DOCKERHUB/$APP:$t-$(date +%Y%m%d)";done
-# if [ -n "$TAGS" ];then TAGS+=" -t $DOCKERHUB/$APP:latest";fi
+# echo TAGS: $TAGS
+# if [ ${#taglist[@]} -eq 0 ];then TAGS="-t latest";fi
+# echo TAGS: $TAGS
+# pause
+
+# for t in ${taglist[@]};do log TAG IS $t;done
+# for t in ${CUSTOM_TAG[@]};do log $t;done
+
+for t in ${CUSTOM_TAG[@]};do log $LINENO APP $APP, t $t && TAGS+=" -t $DOCKERHUB/$APP:$t -t $DOCKERHUB/$APP:$t-$(date +%Y%m%d)";done
+if [ -n "$TAGS" ];then TAGS+=" -t $DOCKERHUB/$APP:latest";fi
+
 print_critical_values leaving do_build
-# for t in ${taglist[@]};do echo TAG IS $t;done
 log $LINENO building from $DOCKERFILE\\ngetting parameters: $APP $PARMFILE
 . ~/devnet/metastore/shell/get_runargs.sh $APP $PARMFILE
 
@@ -191,19 +204,28 @@ print_critical_values calling do build
 do_build
 fi
 
-X=$(echo "$CMD"|sed "s/\\\\n/\\\\\\\\\\\\n/g")
+__CMD__=$(echo "$CMD"|sed "s/\\\\n/\\\\\\\\\\\\n/g")
 # print summary
 for img in ${list[@]};do
   LOGMSG="Built $img with tags $TAGS"
   TMPDIR=/tmp
 
-  cp $DOCKERFILE ${DOCKER_FILE_HOME}/docker.master/${DOCKERFILE}.${taglist}
+  # COPY DOCKERFILE TO MASTER STORE
+  DOCKERMASTER=${DOCKER_FILE_HOME}/docker.master/${DOCKERFILE}.${taglist}
+  DOCKERBUILD=${DOCKER_FILE_HOME}/docker.master/build/${DOCKERFILE}.${taglist}
+  cp $DOCKERFILE $DOCKERMASTER\
+    && echo -e \\n# $(date)\\n# Command: echo -e "# cat \$SECURE_ASSETS/../docker.master/${DOCKERFILE}.${taglist} >\$SECURE_ASSETS/../Dockerfile.user\\\\\n# && ${RUNCOMMAND}"\
+      >>$DOCKERMASTER
+
   # COPY DOCKERFILE TO TMP DIRECTORY
-  cp $DOCKERFILE ${TMPDIR}/${DOCKERFILE}.${STAMP}${LABEL}\
-    && echo -e \\n# $(date):\\npushd \$SECURE_ASSETS/..\\n# Command: ${RUNCOMMAND}${X}\\n#\\t -f ${TMPDIR}/${DOCKERFILE}.${STAMP}${LABEL} .\\npopd\\n# $LOGMSG\
+  DOCKERTEMPFILE=${TMPDIR}/${DOCKERFILE}.${STAMP}${LABEL}
+  cp $DOCKERFILE $DOCKERTEMPFILE\
+    && echo -e \\n# $(date):\\npushd \$SECURE_ASSETS/..\\n# Command: ${RUNCOMMAND}${__CMD__}\\n#\\t -f ./docker.master/build/${DOCKERFILE}.${taglist} .\\npopd\\n# $LOGMSG\
   \
-    >>${TMPDIR}/${DOCKERFILE}.${STAMP}${LABEL} && log $LINENO ${TMPDIR}/${DOCKERFILE}.${STAMP}${LABEL}\
+    >>$DOCKERTEMPFILE && log $LINENO $DOCKERTEMPFILE\
+    && cp -p $DOCKERTEMPFILE $DOCKERBUILD\
     && log $LINENO $LOGMSG
+
 done
 
 )

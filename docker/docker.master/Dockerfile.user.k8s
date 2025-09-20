@@ -1,17 +1,17 @@
 FROM user:base AS devcontainer
+ENV DEBIAN_FRONTEND=noninteractive
 ARG THISUSER
 ARG HOMEDIR=/home
 ARG USERHOME=$HOMEDIR/$THISUSER
 USER $THISUSER
 WORKDIR $USERHOME
 
-ARG BUILD_DATE
-LABEL build-date=${BUILD_DATE}
-RUN echo 'echo -e "\\nuser image ('${BUILD_DATE}')"\n\
-'>>~/.bashrc
-
 FROM devcontainer AS devapps
-# FROM dockertest AS k8s
+
+# RUN sudo az aks install-cli
+# RUN sudo az extension add --name aks-preview
+
+# FROM rubyrails AS k8s
 # Install kubectl and Helm
 RUN curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"\
   && curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl.sha256"\
@@ -36,33 +36,13 @@ RUN wget -O- https://apt.releases.hashicorp.com/gpg | sudo gpg --dearmor -o /usr
   && sudo apt-get update\
   && sudo apt-get install -y -qq terraform
 RUN sudo update-alternatives --install /usr/bin/tf tf /usr/bin/terraform 10\
-  && sudo apt-get -qq update && sudo apt-get -qq install -y apt-transport-https ca-certificates gnupg-agent software-properties-common
+  && sudo apt-get -qq update\
+  && sudo apt-get -qq install -y\
+    apt-transport-https \
+    ca-certificates\
+    gnupg-agent\
+    software-properties-common
 RUN sudo apt-get install -y zip
-
-
-# FROM tf AS mongo
-# Install MongoDB CLI (mongocli)
-# https://www.mongodb.com/docs/mongocli/current/install/?msockid=10e2e10c42b1642f26def4c746b16692
-# RUN apt-get install -y gnupg\
-#   && wget -qO - https://www.mongodb.org/static/pgp/server-6.0.asc | apt-key add -\
-#   && echo "deb [ arch=amd64,arm64 ] https://repo.mongodb.org/apt/ubuntu jammy/mongodb-org/6.0 multiverse" | tee /etc/apt/sources.list.d/mongodb-org-6.0.list\
-#   && apt-get update\
-#   && apt-get install -y mongocli
-# RUN cat >>~/.bashrc <<EOF
-# mongocli -v
-# EOF
-
-# Install mongodb shell (mongosh)
-# https://www.mongodb.com/docs/mongodb-shell
-# https://www.mongodb.com/docs/mongodb-shell/install/
-RUN sudo apt-get install -y gnupg\
-  && wget -qO- https://www.mongodb.org/static/pgp/server-8.0.asc | sudo tee /etc/apt/trusted.gpg.d/server-8.0.asc\
-  && echo "deb [ arch=amd64,arm64 ] https://repo.mongodb.org/apt/ubuntu jammy/mongodb-org/8.0 multiverse" | sudo tee /etc/apt/sources.list.d/mongodb-org-8.0.list
-RUN sudo apt-get update\
-  && sudo apt-get install -y mongodb-mongosh
-# RUN cat >>~/.bashrc <<EOF
-# mongosh --version
-# EOF
 
 # FROM mongo AS postgresclient
 RUN sudo apt install -y postgresql-client\
@@ -75,49 +55,84 @@ RUN sudo apt install -y postgresql-client\
   && sudo locale-gen en_US.UTF-8\
   && sudo update-locale LANG=en_US.UTF-8
 
+  RUN sudo apt-get install -y wget apt-transport-https software-properties-common\
+  && VERSION_ID=$(cat /etc/os-release|grep VERSION_ID|awk -F= '{print $2}'|sed 's/"//g')\
+  && wget -q https://packages.microsoft.com/config/ubuntu/$VERSION_ID/packages-microsoft-prod.deb\
+  && sudo dpkg -i packages-microsoft-prod.deb\
+  && rm packages-microsoft-prod.deb\
+  && sudo apt-get update\
+  && sudo apt-get install -y powershell
 
-# FROM postgresclient AS rubyrailsdeps
-RUN sudo apt-get update\
-  && sudo apt-get install -y curl gpg build-essential libssl-dev libreadline-dev zlib1g-dev\
-  && sudo apt install -y gawk autoconf automake bison libffi-dev libgdbm-dev libncurses5-dev libsqlite3-dev libtool libyaml-dev pkg-config sqlite3 libgmp-dev\
-  && \curl -sSL https://rvm.io/mpapis.asc | gpg --import -\
-  && \curl -sSL https://rvm.io/pkuczynski.asc | gpg --import -\
-  && \curl -sSL https://get.rvm.io | bash -s stable
-
-# FROM rubyrailsdeps AS rubyrails
-ENV RUBY_VERSION=3.4.5
-ENV RAILS_VERSION=7.2.1.1
-RUN /bin/bash $USERHOME/.rvm/scripts/rvm
-RUN $USERHOME/.rvm/bin/rvm install ${RUBY_VERSION}
-RUN $USERHOME/.rvm/bin/rvm use ${RUBY_VERSION} --default
-# RUN cat >>~/.bashrc <<EOF
-# source ~/.rvm/scripts/rvm
-# rvm use \${RUBY_VERSION} --default
-# if ! $USERHOME/.rvm/gems/\${RUBY_VERSION}/bin/rails -v \${RAILS_VERSION};then\
-#   $USERHOME/.rvm/rubies/\${RUBY_VERSION}/bin/gem install rails -v \${RAILS_VERSION};\
-# fi
-# echo ruby: \$(ruby -v)
-# echo rails: \$(rails -v)
-# EOF
+RUN sudo apt-get install -y\
+  bsdmainutils\
+  gettext
 
 # FROM postgresclient AS bashrc
 FROM devapps AS bashrc
-RUN cat >>~/.bashrc <<EOF
-if [ ! -d \$NVM_HOME ];then install_nvm;fi
-installnode
-getyarn
-nodever
-# az version
 
-# RUN cat >>~/.bashrc <<EOF
-source ~/.rvm/scripts/rvm
-# rvm install \${RUBY_VERSION}
-rvm use \${RUBY_VERSION} --default
-if ! $USERHOME/.rvm/gems/\${RUBY_VERSION}/bin/rails -v \${RAILS_VERSION};then\
-  $USERHOME/.rvm/rubies/\${RUBY_VERSION}/bin/gem install rails -v \${RAILS_VERSION};\
-fi
-echo ruby: \$(ruby -v)
-echo rails: \$(rails -v)
+COPY assets.docker/git-prompt.sh $USERHOME/git-prompt.sh
+RUN cat >>~/.bashrc <<EOF
+. ~/git-prompt.sh
+PS1_ON="\[\033[0m\] on "
+PS1_COLON="\[\033[1;30m\]:"
+PS1_HOST="\[\033[0;34m\]\h"
+
+PS1_GITSSH="\[\033[0;36m\]\\\`basename \\\$(git config --get-regexp "ssh.identity"|tail -1|awk '{ print \\\$2 }')\\\`"
+PS1_GITREMOTE="\[\033[0;32m\]\\\`git remote -v 2>/dev/null|head -1 2>/dev/null|awk '{print \\\$2}'\\\`"
+PS1_DATE="\[\033[1;33m\]\`date +%Y-%m-%d\ %H:%M:%S\`"
+PS1_GITUSER="\[\033[0;36m\]\\\`git config --get-regexp \"user.email\"|tail -1|sed \"s/user\.email//\"\\\`"
+PS1_BRANCH="\[\033[0;32m\]\\\`__git_ps1\\\`"
+PS1_USER="\[\033[1;31m\]\u\[\033[0m\]"
+PS1_OS="\[\033[1;31m\]\$(grep -iE ^ID= /etc/os-release 2>/dev/null|awk -F= '{print \$2}'|awk '{print \$1}')"
+PS1_WORK_DIR="\[\033[0;37m\]\w\[\033[1;36m\]\n$ \[\033[0m\]"
+if [ ! -z "\$VIRTUAL_ENV_PROMPT" ];then PS1_PY_ENV="\[\033[0;35m\](\`basename \$VIRTUAL_ENV\`) ";fi
+PS1="\n\[\033[0;33m\][\${PS1_GITSSH} \[\033[0m\]@ \${PS1_GITREMOTE}\[\033[0;33m\]]\n"
+PS1+="\${PS1_DATE} \${PS1_PY_ENV}\${PS1_BRANCH}\${PS1_GITUSER}\${PS1_ON}\${PS1_USER}@\${PS1_OS}\${PS1_COLON}\${PS1_WORK_DIR}"
+export PS1
+EOF
+
+# RUN mkdir -p $USERHOME/bin && echo "\
+# [user]\n\
+#   name = \$gitname\n\
+#   email = \$gitemail\n\
+# [core]\n\
+#   excludesfile = ~/gitignore_global\n\
+#   editor = vim\n\
+#   autocrlf = true\n\
+# [init]\n\
+#   defaultBranch = master\n\
+# [advice]\n\
+#   statusHints = false\n\
+# [ssh]\n\
+#   identity = \$gitkey"\
+# >$USERHOME/.gitconfig
+
+RUN cat >>~/.bashrc <<EOF
+echo "[user]
+  name = \"\$gitname\"
+  email = \$gituser
+[core]
+  excludesfile = ~/gitignore_global
+  editor = vim
+  autocrlf = true
+[init]
+  defaultBranch = master
+[advice]
+  statusHints = false
+[ssh]
+  identity = \$gitkey
+[safe]
+	directory = /home/developer/devnet/appdev"\
+  >~/.gitconfig
+EOF
+
+RUN cat >>~/.bashrc <<EOF
+# if [ ! -d \$NVM_HOME ];then install_nvm;fi
+# installnode
+# getyarn
+# nodever
+# az version
+# dockertest
 
 # RUN cat >>~/.bashrc <<EOF
 alias py=python
@@ -132,7 +147,7 @@ echo kubectl: \$(kubectl version --client)
 echo helm: \$(helm version)
 
 # RUN cat >>~/.bashrc <<EOF
-echo mongosh \$(mongosh --version)
+. ~/appdev/bashrc-hook.sh
 EOF
 
 FROM bashrc AS ending
@@ -143,14 +158,97 @@ ARG FSK=$SKP/$SK
 RUN mkdir -p $SKP && chmod 755 $SKP
 RUN --mount=type=secret,id=$SK cat /run/secrets/$SK >$FSK
 COPY assets.docker/$SK.pub $SKP
-RUN chmod 400 $FSK && chmod 444 $FSK.pub && chown 1000 $SKP
-RUN mkdir -p $USERHOME/bin
+RUN chmod 400 $FSK\
+  && chmod 444 $FSK.pub\
+  && chown 1000 $SKP\
+  && apt-get clean\
+  && rm -rf /var/lib/apt/lists/*
 
 USER $THISUSER
 RUN git config --global ssh.identity $SKP/$SK
 
-# Sat Aug 23 17:47:43 CDT 2025
-# Command: buildcontainer -t rubyrails user
+ARG BUILD_DATE
+LABEL build-date=${BUILD_DATE}
+RUN echo 'echo -e "\\nuser image ('${BUILD_DATE}')"\n\
+'>>~/.bashrc
 
-# Tue Aug 26 17:23:17 CDT 2025
+RUN sudo usermod -a -G docker $(whoami);
+
+# VOLUME ["/var/run/docker.sock"]
+# VOLUME ["/var/lib/docker"]
+
+
+# Sat Aug 23 19:24:42 CDT 2025
 # Command: buildcontainer -t k8s user
+
+# Sun Aug 31 18:46:35 CDT 2025
+# Command: buildcontainer -t k8s user
+
+
+# Mon Sep 1 10:57:53 CDT 2025
+# Command: buildcontainer -t k8s user
+
+# Mon Sep 1 19:14:43 CDT 2025
+# Command: buildcontainer -t k8s user
+
+# Wed Sep 3 11:13:01 CDT 2025
+# Command: buildcontainer -t k8s user
+
+# Fri Sep 5 13:13:58 CDT 2025
+# Command: buildcontainer -t k8s user
+
+# Sat Sep 6 16:39:27 CDT 2025
+# Command: buildcontainer -t k8s user
+
+# Sat Sep 6 16:48:10 CDT 2025
+# Command: buildcontainer -t k8s user
+
+# Sun Sep 7 07:38:00 CDT 2025
+# Command: buildcontainer -t k8s user
+
+# Sun Sep 7 08:38:33 CDT 2025
+# Command: buildcontainer -t k8s user
+
+# Sun Sep 7 13:38:08 CDT 2025
+# Command: buildcontainer -t k8s user
+
+# Sun Sep 7 13:43:58 CDT 2025
+# Command: buildcontainer -t k8s user
+
+# Mon Sep 8 12:42:48 CDT 2025
+# Command: image -t k8s user
+
+# Sun Sep 14 15:18:16 CDT 2025
+# Command: image -t k8s user
+
+# Wed Sep 17 09:30:59 CDT 2025
+# Command: image -t k8s user
+
+# Wed Sep 17 10:07:59 CDT 2025
+# Command: image -t k8s user
+
+# Wed Sep 17 11:50:34 CDT 2025
+# Command: image -t k8s user
+
+# Wed Sep 17 14:14:11 CDT 2025
+# Command: image -t k8s user
+
+# Wed Sep 17 15:54:15 CDT 2025
+# Command: image -t k8s user
+
+# Wed Sep 17 18:24:16 CDT 2025
+# Command: image -t k8s user
+
+# Fri Sep 19 13:13:24 CDT 2025
+# Command: image -t k8s user
+# cat $SECURE_ASSETS/../docker.master/Dockerfile.user.k8s >$SECURE_ASSETS/../Dockerfile.user\
+# && image -t k8s user
+
+# Fri Sep 19 13:15:18 CDT 2025
+# Command: image -t k8s user
+# cat $SECURE_ASSETS/../docker.master/Dockerfile.user.k8s >$SECURE_ASSETS/../Dockerfile.user\
+# && image -t k8s user
+
+# Fri Sep 19 13:16:04 CDT 2025
+# Command: echo -e # cat $SECURE_ASSETS/../docker.master/Dockerfile.user.k8s >$SECURE_ASSETS/../Dockerfile.user\
+# && image -t k8s user

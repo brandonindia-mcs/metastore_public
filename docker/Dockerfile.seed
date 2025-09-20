@@ -5,18 +5,16 @@ CMD [ "/bin/bash" ]
 
 FROM rootcontainer AS utils0
 ENV DEBIAN_FRONTEND=noninteractive
-RUN apt-get -q update
-RUN apt-get -q install -y\
+RUN apt-get update
+RUN apt-get install -y\
   less\
   ssh\
-  sudo\
-  vim
+  sudo
 
-RUN apt-get -q install -y\
+RUN apt-get install -y\
   jq\
   wget\
   unzip
-
 
 RUN echo '### ROOT STUFF ###\n\
 alias ls="ls -Altr --color=auto"\n\
@@ -40,22 +38,11 @@ RUN sudo apt-get -q install -y\
 
 FROM utils2 AS azcli
 RUN sudo apt-get -q update
-RUN apt-get -q install -y\
-  curl
-RUN curl -sL https://packages.microsoft.com/keys/microsoft.asc\
-  | gpg --dearmor\
-  | sudo tee /etc/apt/trusted.gpg.d/microsoft.gpg > /dev/null
-RUN AZ_REPO=$(lsb_release -cs)\
-&& echo "deb [arch=amd64] https://packages.microsoft.com/repos/azure-cli/ $AZ_REPO main"\
-| sudo tee /etc/apt/sources.list.d/azure-cli.list\
-&& sudo apt-get -q update\
-&& sudo apt-get -q install -y\
-  azure-cli
+# INCLUDE PART-AZCLI
 
 
 FROM azcli AS secureroot
 ARG gituser
-ARG HOMEDIR=$HOMEDIR
 ARG THISUSER=$gituser
 
 ARG USERHOME=/root
@@ -136,14 +123,6 @@ function gitwho { git config --get-regexp "user|identity"; }\n\
 
 RUN cat >>/etc/bash.bashrc <<EOF
 function usage { cat <<EOM
-\$(echo \$(basename \$0): \${FUNCNAME[0]})
-    \$*
-EOM
-}
-EOF
-
-RUN cat >>/etc/bash.bashrc <<EOF
-function usage { cat <<EOM
 \$(wern \$(basename \$0): \${FUNCNAME[0]})
     \$*
 EOM
@@ -152,6 +131,9 @@ EOF
 
 FROM sudoers AS rootdir
 WORKDIR /root
+
+RUN apt-get install -y\
+  vim
 
 ARG BUILD_DATE
 LABEL build-date=${BUILD_DATE}

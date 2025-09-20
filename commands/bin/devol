@@ -1,13 +1,32 @@
 #!/bin/bash
 . ~/.bash_functions
 
-for v in $(docker volume ls|grep -v -E '[a-z0-9]{64}'|grep -v -E '^DRIVER');do MOUNTS+=" -v $v:/mnt/$v";done
+function usage {
+  echo -e "\nUsage(devol):\n\tdevol <-p|-perm|-permanent> [volume]"
+}
 
+rm="--rm"
+for i in "$@"; do
+case $i in
+-p|-perm|-permanent)
+shift && unset rm
+;;
+-h)
+shift && docvol -l && usage
+exit 0
+;;
+-*)
+abort_hard $(basename $0) illegal argument: $i
+;;
+esac
+done
+
+for v in $(docker volume ls|grep -v -E '[a-z0-9]{64}'|grep -v -E '^DRIVER');do MOUNTS+=" -v $v:/mnt/$v";done
 echo 'alias ls="/bin/ls -lA --color=auto"'
 
 if [ $# -eq 0 ];then
 ### ALL MOUNTS
-docker run --name devol --rm -it\
+docker run --name devol $rm -it\
  $MOUNTS\
  $*\
  --workdir /mnt\
@@ -17,14 +36,15 @@ docker run --name devol --rm -it\
 
 else
 ### ONE MOUNT
-docker run --name vol_$1 --rm -it\
- -v $1:/$1\
- --workdir /$1\
- --user root\
- seed:minimal
+docker run --name vol_$1 $rm -it\
+  -v $1:/$1\
+  --workdir /$1\
+  --user root\
+  seed:minimal\
+ || docker start vol_$1 && docker attach $_
 # docker exec -it vol_$1 /bin/bash
 
-# CMD="docker run --name $1 --rm -id\
+# CMD="docker run --name $1 $rm -id\
 #  -v $1:/$1\
 #  --workdir /$1\
 #  -e PS1=\"[\w\$ \"]\

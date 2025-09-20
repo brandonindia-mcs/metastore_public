@@ -45,8 +45,10 @@ function pause_for_effect2 { echo -e \\n @ $1: && dumpvars ${@:2} && pausing_for
 function exit9 { echo "BEEEEEEEEEP $* - exiting" && exit 9; }
 function noyes { yesno-N "$*"; }
 function yesno { yesno-Y "$*"; }
-function yesno-Y { read -p "$1 yes (default) or no: " && if [[ ${REPLY,,} = n ]] || [[ ${REPLY,,} = no ]]; then return 9; fi; return 0; }
-function yesno-N { read -p "$1 yes or no (default): " && if [[ ${REPLY,,} = y ]] || [[ ${REPLY,,} = yes ]]; then return 0; fi; return 9; }
+function yesno-Y { read -p "$1 yes (default) or no: " && if [[ ${REPLY,,} = n   ]] || [[ ${REPLY,,} = no    ]]; then return 9; fi; return 0; }
+function yesno-Y { read -p "$1 yes (default) or no: " && if [[ ${REPLY} = n     ]] || [[ ${REPLY} = no      ]]; then return 9; fi; return 0; }
+function yesno-N { read -p "$1 yes or no (default): " && if [[ ${REPLY,,} = y   ]] || [[ ${REPLY,,} = yes   ]]; then return 0; fi; return 9; }
+function yesno-N { read -p "$1 yes or no (default): " && if [[ ${REPLY,,} = y   ]] || [[ ${REPLY} = yes     ]]; then return 0; fi; return 9; }
 function unindex { $(which git) update-index --skip-worktree "${*}"; }
 function reindex { $(which git) update-index --no-skip-worktree "${*}"; }
 function cleanwhite { sed -i -e 's/\r$//' "$1" ; }
@@ -199,3 +201,5 @@ SEVENTEEN=17
 EIGHTTEEN=18
 NINETEEN=19
 TWENTY=20
+
+echo $0 called .bash_functions
