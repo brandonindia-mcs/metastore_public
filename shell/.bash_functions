@@ -202,4 +202,4 @@ EIGHTTEEN=18
 NINETEEN=19
 TWENTY=20
 
-echo $0 called .bash_functions
+# echo $0 called .bash_functions

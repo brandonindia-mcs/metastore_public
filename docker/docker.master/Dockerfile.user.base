@@ -108,8 +108,6 @@ RUN echo '### USER CONTAINER IMAGE SPECIFIC 1 ###\n\
 alias azwho="az account show --query \"{Subscription:name,Type:user.type,User:user.name}\" -o table"\n\
 alias azp="az login --service-principal -u ${SUPER} -t ${AZTENANT} -p ${AZAZCERT} >/dev/null && azwho"\n\
 alias azt="az login -t ${AZTENANT} >/dev/null && az account set --subscription ${AZSUB} && azwho"\n\
-alias ls="ls -Altr --color=auto"\n\
-alias grep="grep --color=auto"\n\
 '\
 >>$USERHOME/.bashrc
 
@@ -275,34 +273,41 @@ alias azwho="az account show --query \"{Subscription:name,Type:user.type,User:us
 alias azp="az login --service-principal -u ${SUPER} -t ${AZTENANT} -p ${AZAZCERT} >/dev/null && azwho"\n\
 alias azt="az login -t ${AZTENANT} >/dev/null && az account set --subscription ${AZSUB} && azwho"\n\
 alias ls="ls -Altr --color=auto"\n\
-alias grep="grep --color=auto"\n\
+alias grep="grep -n --color=auto"\n\
+alias compose="docker compose"\n\
 '\
 >>~/.bashrc
 RUN echo '\n\
 function install_nvm() {\n\
+  NVM_DIR="${NVM_DIR:-$(pwd)/.nvm}"\n\
   echo && blue "------------------ INSTALL NVM ------------------" && echo\n\
+  echo installing mvn @ $NVM_DIR\n\
   git clone https://github.com/nvm-sh/nvm.git $NVM_DIR\n\
   echo $([ -s $NVM_DIR/nvm.sh ] && . $NVM_DIR/nvm.sh && [ -s $NVM_DIR/bash_completion ] && . $NVM_DIR/bash_completion && nvm install --lts)\n\
 }\n\
+\n\
 function installnode() {\n\
+  if [ ! -d $NVM_DIR ];then echo no NVM_DIR: $NVM_DIR && return 1;fi\n\
   echo && blue "------------------ NODE VIA NVM ------------------" && echo\n\
   cyan "Updating nvm:" && echo $(pushd $NVM_DIR && git pull && popd || popd)\n\
   if  ! command -v nvm >/dev/null; then\n\
   [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"  # This loads nvm\n\
   [ -s "$NVM_DIR/bash_completion" ] && . "$NVM_DIR/bash_completion"  # This loads nvm bash_completion\n\
   fi\n\
+  nodever\n\
 }\n\
 \n\
 function nodever() {\n\
   if [ ! -z $1 ]; then\n\
-    nvm install ${1} >/dev/null 2>&1 && nvm use ${_} > /dev/null 2>&1\\\n\
-      && nvm alias default ${_} > /dev/null 2>&1; blue "Node:"; node -v; else\n\
-    yellow "INFORMATIONAL: Use nodever to install or switch node versions:" && echo -e "\\tusage: nodever [ver]"\n\
-    blue "Node:" && node -v\n\
-    blue "npm:" && npm -v\n\
-    blue "nvm:" && nvm -v\n\
+    nvm install ${1} >/dev/null 2>&1 && nvm use ${_} > /dev/null 2>&1\\n\
+      && nvm alias default ${_} > /dev/null 2>&1; nodever; else\n\
+    yellow "INFORMATIONAL: Use nodever to install or switch node versions:" && echo -e "\tusage: nodever [ver]"\n\
+    blue "Node: $(node -v)"\n\
+    blue "npm: $(npm -v)"\n\
+    blue "nvm: $(nvm -v)"\n\
   fi\n\
 }\n\
+\n\
 function getyarn() {\n\
   echo && blue "------------------ YARN - NEEDS NVM ------------------" && echo\n\
   if ! command -v yarn >/dev/null 2>&1; then grey "Getting yarn: " && npm install --global yarn >/dev/null; fi\n\
@@ -317,7 +322,7 @@ git config --global core.longpaths true\n\
 \n\
 export PATH="~/bin:~/.local/bin:$PATH"\n\
 \n\
-alias stamp="echo $(date +%Y%m%dT%H%M%S)"\
+alias stamp="echo \$(date +%Y%m%dT%H%M%S)"\
 '\
 >>~/.bashrc
 
@@ -333,22 +338,23 @@ echo 'eval \$(ssh-agent -s) && ssh-add \$(git config --get ssh.identity)'\n\
 COPY assets.docker/git-prompt.sh $USERHOME/git-prompt.sh
 RUN cat >>~/.bashrc <<EOF
 . ~/git-prompt.sh
-PS1_ON="\[\033[0m\] on "
-PS1_COLON="\[\033[1;30m\]:"
+PS1_ON="\[\033[0m\]on"
+PS1_COLON="\[\033[1;33m\]:"
 PS1_HOST="\[\033[0;34m\]\h"
 
 PS1_GITSSH="\[\033[0;36m\]\\\`basename \\\$(git config --get-regexp "ssh.identity"|tail -1|awk '{ print \\\$2 }')\\\`"
 PS1_GITREMOTE="\[\033[0;32m\]\\\`git remote -v 2>/dev/null|head -1 2>/dev/null|awk '{print \\\$2}'\\\`"
 PS1_DATE="\[\033[1;33m\]\`date +%Y-%m-%d\ %H:%M:%S\`"
-PS1_GITUSER="\[\033[0;36m\]\\\`git config --get-regexp \"user.email\"|tail -1|sed \"s/user\.email//\"|sed \"s/\ //\"\\\`"
+PS1_GITUSER="\[\033[0;36m\]\\\`git config --get-regexp \"user.email\"|tail -1|sed \"s/user\.email//\"\\\`"
 PS1_BRANCH="\[\033[0;32m\]\\\`__git_ps1\\\`"
 PS1_USER="\[\033[1;31m\]\u\[\033[0m\]"
 PS1_OS="\[\033[1;31m\]\$(grep -iE ^ID= /etc/os-release 2>/dev/null|awk -F= '{print \$2}'|awk '{print \$1}')"
-PS1_WORK_DIR="\[\033[0;37m\]\w\[\033[1;36m\]\n$ \[\033[0m\]"
-# if [ ! -z "\$VIRTUAL_ENV_PROMPT" ];then PS1_PY_ENV="\[\033[0;35m\](\`basename \$VIRTUAL_ENV\`) ";fi
-if [ ! -z "\$VIRTUAL_ENV_PROMPT" ];then PS1_PY_ENV="\[\033[0;35m\]\$VIRTUAL_ENV_PROMPT";fi
+PS1_PWD="\[\033[0;37m\]\w"
+PS1_INPUTLINE="\[\033[1;36m\]\n$ \[\033[0m\]"
+if [ ! -z "\$VIRTUAL_ENV_PROMPT" ];then PS1_PY_ENV="\[\033[0;35m\](\`basename \$VIRTUAL_ENV\`)";fi
 PS1="\n\[\033[0;33m\][\${PS1_GITSSH} \[\033[0m\]@ \${PS1_GITREMOTE}\[\033[0;33m\]]\n"
-PS1+="\${PS1_DATE} \${PS1_PY_ENV}\${PS1_BRANCH}\${PS1_GITUSER}\${PS1_ON}\${PS1_USER}@\${PS1_OS}\${PS1_COLON}\${PS1_WORK_DIR}"
+PS1+="\${PS1_DATE} \${PS1_USER}@\${PS1_OS} \${PS1_PY_ENV}\${PS1_BRANCH}\${PS1_GITUSER}\${PS1_COLON}\${PS1_PWD}"
+PS1+="\${PS1_INPUTLINE}"
 export PS1
 EOF
 
@@ -384,68 +390,47 @@ RUN echo 'echo -e "\\nuser:base ('${BUILD_DATE}')"\n\
 # Sat Aug 23 17:24:49 CDT 2025
 # Command: buildcontainer -t base user
 
-# Sun Aug 31 18:38:01 CDT 2025
-# Command: buildcontainer -t base user
-
-# Mon Sep 1 10:55:55 CDT 2025
-# Command: buildcontainer -t base user
-
-# Mon Sep 1 19:12:56 CDT 2025
-# Command: buildcontainer -t base user
-
-# Tue Sep 2 16:09:28 CDT 2025
-# Command: buildcontainer -t base user
-
-# Sat Sep 6 16:45:30 CDT 2025
-# Command: buildcontainer -t base user
-
-# Sat Sep 6 16:56:00 CDT 2025
-# Command: buildcontainer -t base user
-
-# Sat Sep 6 17:05:29 CDT 2025
-# Command: buildcontainer -t base user
-
-# Sat Sep 6 20:52:30 CDT 2025
-# Command: buildcontainer -t base user
-
-# Sat Sep 6 20:58:26 CDT 2025
-# Command: buildcontainer -t base user
-
-# Sun Sep 7 07:44:14 CDT 2025
-# Command: buildcontainer -t base user
-
-# Sun Sep 7 08:34:05 CDT 2025
-# Command: buildcontainer -t base user
-
-# Sun Sep 7 09:31:36 CDT 2025
-# Command: buildcontainer -t base user
-
-# Sun Sep 7 13:41:57 CDT 2025
-# Command: buildcontainer -t base user
-
-# Mon Sep 8 12:40:35 CDT 2025
-# Command: image -t base user
-
-# Sun Sep 14 14:10:15 CDT 2025
-# Command: image -t base user
-
-# Mon Sep 15 16:29:08 CDT 2025
-# Command: image -t base user
-
-# Wed Sep 17 10:05:22 CDT 2025
-# Command: image -t base user
-
-# Wed Sep 17 14:12:25 CDT 2025
-# Command: image -t base user
-
-# Wed Sep 17 15:52:38 CDT 2025
-# Command: image -t base user
-
-# Wed Sep 17 18:22:10 CDT 2025
-# Command: image -t base user
-
+# Sun Sep 21 11:56:08 CDT 2025
+# Command: 
 # cat $SECURE_ASSETS/../docker.master/Dockerfile.user.base >$SECURE_ASSETS/../Dockerfile.user\
 #   && image -t base user
 
-# Fri Sep 19 12:46:26 CDT 2025
-# Command: image -t base user
+# Sat Sep 27 12:53:40 CDT 2025
+# Command: 
+# cat $SECURE_ASSETS/../docker.master/Dockerfile.user.base >$SECURE_ASSETS/../Dockerfile.user\
+#   && image -t base user
+
+# Sun Sep 28 11:08:53 CDT 2025
+# Command: 
+# cat $SECURE_ASSETS/../docker.master/Dockerfile.user.base >$SECURE_ASSETS/../Dockerfile.user\
+#   && image -t base user
+
+# Sun Sep 28 11:33:07 CDT 2025
+# Command: 
+# cat $SECURE_ASSETS/../docker.master/Dockerfile.user.base >$SECURE_ASSETS/../Dockerfile.user\
+#   && image -t base user
+
+# Mon Sep 29 07:55:56 CDT 2025
+# Command: 
+# cat $SECURE_ASSETS/../docker.master/Dockerfile.user.base >$SECURE_ASSETS/../Dockerfile.user\
+#   && image -t base user
+
+# Mon Sep 29 08:01:50 CDT 2025
+# Command: 
+# cat $SECURE_ASSETS/../docker.master/Dockerfile.user.base >$SECURE_ASSETS/../Dockerfile.user\
+#   && image -t base user
+
+# Mon Sep 29 08:02:04 CDT 2025
+# Command: 
+# cat $SECURE_ASSETS/../docker.master/Dockerfile.user.base >$SECURE_ASSETS/../Dockerfile.user\
+#   && image -t base user
+
+# Mon Sep 29 16:29:47 CDT 2025
+# Command: 
+# cat $SECURE_ASSETS/../docker.master/Dockerfile.user.base >$SECURE_ASSETS/../Dockerfile.user\
+#   && image -t base user
+
+# Tue Sep 30 16:05:12 CDT 2025
+# Command: 
+# cat $SECURE_ASSETS/../docker.master/Dockerfile.user.base >$SECURE_ASSETS/../Dockerfile.user\
+#   && image -t base user

@@ -209,12 +209,14 @@ __CMD__=$(echo "$CMD"|sed "s/\\\\n/\\\\\\\\\\\\n/g")
 for img in ${list[@]};do
   LOGMSG="Built $img with tags $TAGS"
   TMPDIR=/tmp
+  BAKDIR=${DOCKER_FILE_HOME}/docker.master/bak
+  mkdir -p $BAKDIR
 
   # COPY DOCKERFILE TO MASTER STORE
   DOCKERMASTER=${DOCKER_FILE_HOME}/docker.master/${DOCKERFILE}.${taglist}
   DOCKERBUILD=${DOCKER_FILE_HOME}/docker.master/build/${DOCKERFILE}.${taglist}
   cp $DOCKERFILE $DOCKERMASTER\
-    && echo -e \\n# $(date)\\n# Command: echo -e "# cat \$SECURE_ASSETS/../docker.master/${DOCKERFILE}.${taglist} >\$SECURE_ASSETS/../Dockerfile.user\\\\\n# && ${RUNCOMMAND}"\
+    && echo -e \\n# $(date)\\n# Command: \\n"# cat \$SECURE_ASSETS/../docker.master/${DOCKERFILE}.${taglist} >\$SECURE_ASSETS/../Dockerfile.user\\\\\n#   && ${RUNCOMMAND}"\
       >>$DOCKERMASTER
 
   # COPY DOCKERFILE TO TMP DIRECTORY
@@ -224,7 +226,9 @@ for img in ${list[@]};do
   \
     >>$DOCKERTEMPFILE && log $LINENO $DOCKERTEMPFILE\
     && cp -p $DOCKERTEMPFILE $DOCKERBUILD\
-    && log $LINENO $LOGMSG
+    && log $LINENO $LOGMSG\
+    \
+    && cp -p $DOCKERTEMPFILE $BAKDIR/
 
 done
 
