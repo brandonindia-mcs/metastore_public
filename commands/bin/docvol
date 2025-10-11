@@ -1,4 +1,5 @@
 #!/bin/bash
+(
 . ~/.bash_functions
 
 function usage {
@@ -66,6 +67,14 @@ function set_owner {
   eval $CMD
 
 }
+### -create|-c)
+function set_owner2 {
+  CMD="docker run --privileged --rm -it --pid=host debian nsenter -t 1 -m -u -n -i\
+    sh -c \"/bin/chown $2:$2 /var/lib/docker/volumes/$1/_data\""
+  # echo $CMD
+  eval $CMD
+}
+
 
 ### -network|-n)
 function do_network {
@@ -238,7 +247,7 @@ case $i in
   ;;
 esac
 done
-
+)
 # log $LINENO printing user volumes:
 # docker volume ls|grep -v -E '[a-z0-9]{64}'|sort && echo
 # help

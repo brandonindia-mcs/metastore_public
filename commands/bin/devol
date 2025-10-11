@@ -1,4 +1,5 @@
 #!/bin/bash
+(
 . ~/.bash_functions
 
 function usage {
@@ -36,12 +37,21 @@ docker run --name devol $rm -it\
 
 else
 ### ONE MOUNT
-docker run --name vol_$1 $rm -it\
+CMD="docker run --name vol_$1 $rm -it\
   -v $1:/$1\
   --workdir /$1\
   --user root\
   seed:minimal\
- || docker start vol_$1 && docker attach $_
+ || docker start vol_$1 && docker attach \$_"
+echo $CMD
+eval $CMD
+
+#  docker run --name vol_$1 $rm -it\
+#   -v $1:/$1\
+#   --workdir /$1\
+#   --user root\
+#   seed:minimal\
+#  || docker start vol_$1 && docker attach $_
 # docker exec -it vol_$1 /bin/bash
 
 # CMD="docker run --name $1 $rm -id\
@@ -59,3 +69,4 @@ docker run --name vol_$1 $rm -it\
 # # echo -n removing container... && docker stop $guid&
 # # $(docker stop $guid >/dev/null)&
 fi
+)

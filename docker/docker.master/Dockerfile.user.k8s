@@ -69,7 +69,7 @@ RUN sudo apt-get install -y\
   gettext\
   netcat
 
-RUN sudo apt update && sudo apt install tree -y
+RUN sudo apt update && sudo apt install -y cron tree
 # FROM postgresclient AS bashrc
 FROM devapps AS bashrc
 
@@ -180,6 +180,23 @@ RUN chmod 400 $FSK\
   && apt-get clean\
   && rm -rf /var/lib/apt/lists/*
 
+RUN cat >/entrypoint.sh <<EOF
+#!/bin/bash
+set -euo pipefail
+echo "Setting ownership of \${VOL_MNT} to \$(id -u):\$(id -g)"
+sudo chown -R \$(id -u):\$(id -g) "\${VOL_MNT}"
+if [ \$# -eq 0 ]; then
+  exec bash
+else
+  exec "\$@"
+fi
+EOF
+
+RUN chmod +x /entrypoint.sh
+# Set entrypoint
+# ENTRYPOINT ["/entrypoint.sh"]
+# CMD ["/bin/bash"]
+
 USER $THISUSER
 RUN git config --global ssh.identity $SKP/$SK
 
@@ -188,7 +205,7 @@ LABEL build-date=${BUILD_DATE}
 RUN echo 'echo -e "\\nuser image ('${BUILD_DATE}')"\n\
 '>>~/.bashrc
 
-RUN sudo usermod -a -G docker $(whoami);
+RUN sudo usermod -a -G docker $(whoami)
 
 # VOLUME ["/var/run/docker.sock"]
 # VOLUME ["/var/lib/docker"]
@@ -201,102 +218,7 @@ RUN sudo usermod -a -G docker $(whoami);
 # cat $SECURE_ASSETS/../docker.master/Dockerfile.user.k8s >$SECURE_ASSETS/../Dockerfile.user\
 #   && image -t k8s user
 
-# Mon Sep 29 16:05:26 CDT 2025
-# Command: 
-# cat $SECURE_ASSETS/../docker.master/Dockerfile.user.k8s >$SECURE_ASSETS/../Dockerfile.user\
-#   && image -t k8s user
-
-# Mon Sep 29 16:31:17 CDT 2025
-# Command: 
-# cat $SECURE_ASSETS/../docker.master/Dockerfile.user.k8s >$SECURE_ASSETS/../Dockerfile.user\
-#   && image -t k8s user
-
-# Tue Sep 30 16:06:53 CDT 2025
-# Command: 
-# cat $SECURE_ASSETS/../docker.master/Dockerfile.user.k8s >$SECURE_ASSETS/../Dockerfile.user\
-#   && image -t k8s user
-
-# Thu Oct 2 08:52:42 CDT 2025
-# Command: 
-# cat $SECURE_ASSETS/../docker.master/Dockerfile.user.k8s >$SECURE_ASSETS/../Dockerfile.user\
-#   && image -t k8s user
-
-# Thu Oct 2 09:01:33 CDT 2025
-# Command: 
-# cat $SECURE_ASSETS/../docker.master/Dockerfile.user.k8s >$SECURE_ASSETS/../Dockerfile.user\
-#   && image -t k8s user
-
-# Thu Oct 2 09:03:54 CDT 2025
-# Command: 
-# cat $SECURE_ASSETS/../docker.master/Dockerfile.user.k8s >$SECURE_ASSETS/../Dockerfile.user\
-#   && image -t k8s user
-
-# Thu Oct 2 09:05:45 CDT 2025
-# Command: 
-# cat $SECURE_ASSETS/../docker.master/Dockerfile.user.k8s >$SECURE_ASSETS/../Dockerfile.user\
-#   && image -t k8s user
-
-# Thu Oct 2 09:09:36 CDT 2025
-# Command: 
-# cat $SECURE_ASSETS/../docker.master/Dockerfile.user.k8s >$SECURE_ASSETS/../Dockerfile.user\
-#   && image -t k8s user
-
-# Thu Oct 2 10:09:03 CDT 2025
-# Command: 
-# cat $SECURE_ASSETS/../docker.master/Dockerfile.user.k8s >$SECURE_ASSETS/../Dockerfile.user\
-#   && image -t k8s user
-
-# Fri Oct 3 09:30:04 CDT 2025
-# Command: 
-# cat $SECURE_ASSETS/../docker.master/Dockerfile.user.k8s >$SECURE_ASSETS/../Dockerfile.user\
-#   && image -t k8s user
-
-# Fri Oct 3 09:40:20 CDT 2025
-# Command: 
-# cat $SECURE_ASSETS/../docker.master/Dockerfile.user.k8s >$SECURE_ASSETS/../Dockerfile.user\
-#   && image -t k8s user
-
-# Fri Oct 3 09:41:05 CDT 2025
-# Command: 
-# cat $SECURE_ASSETS/../docker.master/Dockerfile.user.k8s >$SECURE_ASSETS/../Dockerfile.user\
-#   && image -t k8s user
-
-# Fri Oct 3 09:42:21 CDT 2025
-# Command: 
-# cat $SECURE_ASSETS/../docker.master/Dockerfile.user.k8s >$SECURE_ASSETS/../Dockerfile.user\
-#   && image -t k8s user
-
-# Fri Oct 3 09:42:42 CDT 2025
-# Command: 
-# cat $SECURE_ASSETS/../docker.master/Dockerfile.user.k8s >$SECURE_ASSETS/../Dockerfile.user\
-#   && image -t k8s user
-
-# Fri Oct 3 09:54:05 CDT 2025
-# Command: 
-# cat $SECURE_ASSETS/../docker.master/Dockerfile.user.k8s >$SECURE_ASSETS/../Dockerfile.user\
-#   && image -t k8s user
-
-# Fri Oct 3 14:44:58 CDT 2025
-# Command: 
-# cat $SECURE_ASSETS/../docker.master/Dockerfile.user.k8s >$SECURE_ASSETS/../Dockerfile.user\
-#   && image -t k8s user
-
-# Fri Oct 3 14:45:36 CDT 2025
-# Command: 
-# cat $SECURE_ASSETS/../docker.master/Dockerfile.user.k8s >$SECURE_ASSETS/../Dockerfile.user\
-#   && image -t k8s user
-
-# Fri Oct 3 14:46:13 CDT 2025
-# Command: 
-# cat $SECURE_ASSETS/../docker.master/Dockerfile.user.k8s >$SECURE_ASSETS/../Dockerfile.user\
-#   && image -t k8s user
-
-# Fri Oct 3 14:49:07 CDT 2025
-# Command: 
-# cat $SECURE_ASSETS/../docker.master/Dockerfile.user.k8s >$SECURE_ASSETS/../Dockerfile.user\
-#   && image -t k8s user
-
-# Mon Oct 6 10:46:08 CDT 2025
+# Sat Oct 11 10:16:15 CDT 2025
 # Command: 
 # cat $SECURE_ASSETS/../docker.master/Dockerfile.user.k8s >$SECURE_ASSETS/../Dockerfile.user\
 #   && image -t k8s user
