@@ -409,3 +409,8 @@ RUN echo 'echo -e "\\nuser:base ('${BUILD_DATE}')"\n\
 # Command: 
 # cat $SECURE_ASSETS/../docker.master/Dockerfile.user.base >$SECURE_ASSETS/../Dockerfile.user\
 #   && image -t base user
+
+# Wed Oct 15 16:40:28 CDT 2025
+# Command: 
+# cat $SECURE_ASSETS/../docker.master/Dockerfile.user.base >$SECURE_ASSETS/../Dockerfile.user\
+#   && image --no-cache -t base user

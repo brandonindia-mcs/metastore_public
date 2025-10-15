@@ -11,25 +11,6 @@ FROM devcontainer AS devapps
 # RUN sudo az aks install-cli
 # RUN sudo az extension add --name aks-preview
 
-# FROM rubyrails AS k8s
-# Install kubectl and Helm
-RUN curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"\
-  && curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl.sha256"\
-  && echo "$(cat kubectl.sha256)  kubectl" | sha256sum --check\
-  && sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
-RUN rm -rf ~/kubectl*
-# RUN cat >>~/.bashrc <<EOF
-# echo kubectl: \$(kubectl version --client)
-# EOF
-
-RUN curl -O https://get.helm.sh/helm-v3.18.4-linux-amd64.tar.gz\
-  && tar zxf helm-v3.18.4-linux-amd64.tar.gz\
-  && sudo mv linux-amd64/helm /usr/local/bin\
-  && rm -rf helm-v3.18.4-linux-amd64.tar.gz linux-amd64
-# RUN cat >>~/.bashrc <<EOF
-# helm version
-# EOF
-
 # FROM k8s AS tf
 # Install Terraform
 RUN wget -O- https://apt.releases.hashicorp.com/gpg | sudo gpg --dearmor -o /usr/share/keyrings/hashicorp-archive-keyring.gpg\
@@ -69,7 +50,31 @@ RUN sudo apt-get install -y\
   gettext\
   netcat
 
-RUN sudo apt update && sudo apt install -y cron tree
+# FROM rubyrails AS k8s
+# Install kubectl and Helm
+# RUN curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"\
+#   && curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl.sha256"\
+#   && echo "$(cat kubectl.sha256)  kubectl" | sha256sum --check\
+#   && sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
+RUN curl -LO "https://dl.k8s.io/release/v1.32.5/bin/linux/amd64/kubectl"\
+  && curl -LO "https://dl.k8s.io/release/v1.32.5/bin/linux/amd64/kubectl.sha256"\
+  && echo "$(cat kubectl.sha256)  kubectl" | sha256sum --check\
+  && sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
+
+RUN rm -rf ~/kubectl*
+# RUN cat >>~/.bashrc <<EOF
+# echo kubectl: \$(kubectl version --client)
+# EOF
+
+RUN curl -O https://get.helm.sh/helm-v3.18.4-linux-amd64.tar.gz\
+  && tar zxf helm-v3.18.4-linux-amd64.tar.gz\
+  && sudo mv linux-amd64/helm /usr/local/bin\
+  && rm -rf helm-v3.18.4-linux-amd64.tar.gz linux-amd64
+# RUN cat >>~/.bashrc <<EOF
+# helm version
+# EOF
+
+RUN sudo apt update && sudo apt install -y tree
 # FROM postgresclient AS bashrc
 FROM devapps AS bashrc
 
@@ -219,6 +224,66 @@ RUN sudo usermod -a -G docker $(whoami)
 #   && image -t k8s user
 
 # Sat Oct 11 10:16:15 CDT 2025
+# Command: 
+# cat $SECURE_ASSETS/../docker.master/Dockerfile.user.k8s >$SECURE_ASSETS/../Dockerfile.user\
+#   && image -t k8s user
+
+# Mon Oct 13 13:54:36 CDT 2025
+# Command: 
+# cat $SECURE_ASSETS/../docker.master/Dockerfile.user.k8s >$SECURE_ASSETS/../Dockerfile.user\
+#   && image -t k8s user
+
+# Wed Oct 15 06:32:39 CDT 2025
+# Command: 
+# cat $SECURE_ASSETS/../docker.master/Dockerfile.user.k8s >$SECURE_ASSETS/../Dockerfile.user\
+#   && image -t k8s user
+
+# Wed Oct 15 10:10:26 CDT 2025
+# Command: 
+# cat $SECURE_ASSETS/../docker.master/Dockerfile.user.k8s >$SECURE_ASSETS/../Dockerfile.user\
+#   && image -t k8s user
+
+# Wed Oct 15 10:44:01 CDT 2025
+# Command: 
+# cat $SECURE_ASSETS/../docker.master/Dockerfile.user.k8s >$SECURE_ASSETS/../Dockerfile.user\
+#   && image -t k8s user
+
+# Wed Oct 15 12:10:35 CDT 2025
+# Command: 
+# cat $SECURE_ASSETS/../docker.master/Dockerfile.user.k8s >$SECURE_ASSETS/../Dockerfile.user\
+#   && image -t k8s user
+
+# Wed Oct 15 13:29:47 CDT 2025
+# Command: 
+# cat $SECURE_ASSETS/../docker.master/Dockerfile.user.k8s >$SECURE_ASSETS/../Dockerfile.user\
+#   && image -t k8s user
+
+# Wed Oct 15 14:03:11 CDT 2025
+# Command: 
+# cat $SECURE_ASSETS/../docker.master/Dockerfile.user.k8s >$SECURE_ASSETS/../Dockerfile.user\
+#   && image -t k8s user
+
+# Wed Oct 15 14:03:57 CDT 2025
+# Command: 
+# cat $SECURE_ASSETS/../docker.master/Dockerfile.user.k8s >$SECURE_ASSETS/../Dockerfile.user\
+#   && image -t k8s user
+
+# Wed Oct 15 15:27:03 CDT 2025
+# Command: 
+# cat $SECURE_ASSETS/../docker.master/Dockerfile.user.k8s >$SECURE_ASSETS/../Dockerfile.user\
+#   && image -t k8s user
+
+# Wed Oct 15 15:29:22 CDT 2025
+# Command: 
+# cat $SECURE_ASSETS/../docker.master/Dockerfile.user.k8s >$SECURE_ASSETS/../Dockerfile.user\
+#   && image -t k8s user
+
+# Wed Oct 15 16:42:32 CDT 2025
+# Command: 
+# cat $SECURE_ASSETS/../docker.master/Dockerfile.user.k8s >$SECURE_ASSETS/../Dockerfile.user\
+#   && image --no-cache -t k8s user
+
+# Wed Oct 15 16:44:07 CDT 2025
 # Command: 
 # cat $SECURE_ASSETS/../docker.master/Dockerfile.user.k8s >$SECURE_ASSETS/../Dockerfile.user\
 #   && image -t k8s user
