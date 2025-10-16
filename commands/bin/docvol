@@ -67,14 +67,6 @@ function set_owner {
   eval $CMD
 
 }
-### -create|-c)
-function set_owner2 {
-  CMD="docker run --privileged --rm -it --pid=host debian nsenter -t 1 -m -u -n -i\
-    sh -c \"/bin/chown $2:$2 /var/lib/docker/volumes/$1/_data\""
-  # echo $CMD
-  eval $CMD
-}
-
 
 ### -network|-n)
 function do_network {
