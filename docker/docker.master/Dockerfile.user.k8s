@@ -287,3 +287,13 @@ RUN sudo usermod -a -G docker $(whoami)
 # Command: 
 # cat $SECURE_ASSETS/../docker.master/Dockerfile.user.k8s >$SECURE_ASSETS/../Dockerfile.user\
 #   && image -t k8s user
+
+# Thu Oct 16 09:26:11 CDT 2025
+# Command: 
+# cat $SECURE_ASSETS/../docker.master/Dockerfile.user.k8s >$SECURE_ASSETS/../Dockerfile.user\
+#   && image -t k8s user
+
+# Thu Oct 16 09:27:40 CDT 2025
+# Command: 
+# cat $SECURE_ASSETS/../docker.master/Dockerfile.user.k8s >$SECURE_ASSETS/../Dockerfile.user\
+#   && image -t k8s user

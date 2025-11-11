@@ -25,7 +25,19 @@ done
 for v in $(docker volume ls|grep -v -E '[a-z0-9]{64}'|grep -v -E '^DRIVER');do MOUNTS+=" -v $v:/mnt/$v";done
 echo 'alias ls="/bin/ls -lA --color=auto"'
 
-if [ $# -eq 0 ];then
+if [ $# -gt 0 ];then
+### ONE MOUNT
+CMD="docker run --name vol-$1 $rm -it\
+  -v $1:/$1\
+  --workdir /$1\
+  --user root\
+  seed:minimal\
+ || docker start vol-$1 && docker attach \$_"
+echo $CMD
+eval $CMD
+
+
+else
 ### ALL MOUNTS
 docker run --name devol $rm -it\
  $MOUNTS\
@@ -34,25 +46,13 @@ docker run --name devol $rm -it\
  seed:minimal
 # docker exec -it devol /bin/bash
 
-
-else
-### ONE MOUNT
-CMD="docker run --name vol_$1 $rm -it\
-  -v $1:/$1\
-  --workdir /$1\
-  --user root\
-  seed:minimal\
- || docker start vol_$1 && docker attach \$_"
-echo $CMD
-eval $CMD
-
-#  docker run --name vol_$1 $rm -it\
+#  docker run --name vol-$1 $rm -it\
 #   -v $1:/$1\
 #   --workdir /$1\
 #   --user root\
 #   seed:minimal\
-#  || docker start vol_$1 && docker attach $_
-# docker exec -it vol_$1 /bin/bash
+#  || docker start vol-$1 && docker attach $_
+# docker exec -it vol-$1 /bin/bash
 
 # CMD="docker run --name $1 $rm -id\
 #  -v $1:/$1\

@@ -16,12 +16,6 @@ RUN apt-get install -y\
   wget\
   unzip
 
-RUN echo '### ROOT STUFF ###\n\
-alias ls="ls -Altr --color=auto"\n\
-export PS1="\\[\\033[1;32m\\]\\u\\[\\033[0m\\]@\\[\\033[1;31m\\]\\h:\\[\\033[0;37m\\]\\w\\[\\033[1;301m\\]\\$\\[\\033[0m\\] "\n\
-export HISTTIMEFORMAT="%FT%T\t"\n\
-'\
->>/root/.bashrc
 
 FROM utils0 AS utils1
 RUN sudo apt-get -q install -y\
@@ -36,12 +30,30 @@ RUN sudo apt-get -q install -y\
   software-properties-common\
   gnupg-agent
 
-FROM utils2 AS azcli
+RUN apt-get install -y\
+  vim
+
+FROM utils2 AS profile
 RUN sudo apt-get -q update
-# INCLUDE PART-AZCLI
+
+# RUN echo '### ROOT STUFF ###\n\
+# alias ls="ls -Altr --color=auto"\n\
+# # export PS1="\\[\\033[1;32m\\]\\u\\[\\033[0m\\]@\\[\\033[1;31m\\]\\h:\\[\\033[0;37m\\]\\w\\[\\033[1;301m\\]\\$\\[\\033[0m\\] "\n\
+# export PS1="\\[\\033[1;32m\\]\\u\\[\\033[0m\\]@\\[\\033[1;31m\\]\\h:\\[\\033[0m\\]\\w\\[\\033[1;31m\\]# \\[\\033[0m\\]"\n\
+# export HISTTIMEFORMAT="%FT%T\t"\n\
+# '\
+# >>/root/.bashrc
+
+RUN cat >>~/.bashrc <<EOF
+function set_ps1 {
+ps1="\\[\\033[1;32m\\]\\u\\[\\033[0m\\]@\\[\\033[1;31m\\]\\h:\\[\\033[0m\\]\\w\\[\\033[1;31m\\]# \\[\\033[0m\\]"
+echo \$ps1
+}
+export PS1=\$(set_ps1)
+EOF
 
 
-FROM azcli AS secureroot
+FROM profile AS secureroot
 ARG gituser
 ARG THISUSER=$gituser
 
@@ -132,8 +144,6 @@ EOF
 FROM sudoers AS rootdir
 WORKDIR /root
 
-RUN apt-get install -y\
-  vim
 
 ARG BUILD_DATE
 LABEL build-date=${BUILD_DATE}
