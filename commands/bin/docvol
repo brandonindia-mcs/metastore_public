@@ -75,54 +75,29 @@ function do_network {
 
 ### -backup|-b)
 function do_backup {
-  . ~/.bash_functions
-
-  for i in "$@"
-  do
-  case $i in
-  --dir=*)
-    local_dir=${i#*=}
-    if [ -d $local_dir ];then
-      pushd $local_dir && popd
-      log $LINENO local_dir not implemented\\nexiting with grace && exit 0
-    else abort $LINENO $local_dir not a directory && exit 1;fi
-    shift
-    ;;
-  esac
-  done
-
-
-  STMP=$(date +%Y-%m-%d-%H-%M-%S)
+(
+  VOL=$1 && shift
+  STMP=$(date +%Y-%m-%d-%H-%M)
   DATE=$(date +%Y-%m-%d)
-  BAKPATH=/tmp
+  BAKPATH=~/devnet/docker_volume_backup
 
-  for mnt in $*;do
+### SKELETON COMMAND ###
+# docker run --rm \
+#       -v "$VOLUME_NAME":/backup-volume \
+#       -v "$(pwd)":/backup \
+#       busybox \
+#       tar -zcvf /backup/my-backup.tar.gz /backup-volume
 
-    ## THIS CREATES BACKUPS FOR ONE-OFF FILES
-    if [[ $mnt = local ]];then mnt=localbackup && collect_local_assets $mnt;fi
-
-    MOUNTS+=" -v $mnt:/mnt/$mnt";
-    TARFILE=volume.${mnt}.${STMP}.tar
-    local vm=backup-${mnt}-${STMP}
-    TAR="tar cvf ${BAKPATH}/${TARFILE} ${mnt}"
-    echo "Backing up docker volume ${mnt} to ${BAKPATH}/${TARFILE}"
-
-  BACKUPSTORE="/mnt/c/OneDrive - Microsoft/_volume_backup/volume.${mnt}"
-  if [ ! -d "$BACKUPSTORE" ];then warn $LINENO "creating directory: $BACKUPSTORE"
-    mkdir -p "$BACKUPSTORE"
-  fi
-
-    docker run --name $vm --rm -itd $MOUNTS --workdir /mnt ubuntu:20.04\
-        && docker exec ${vm} ${TAR} >/dev/null 2>&1\
-        && docker cp ${vm}:${BAKPATH}/${TARFILE} ${BAKPATH}/${TARFILE}\
-        && gzip -c ${BAKPATH}/${TARFILE} >"${BACKUPSTORE}/${TARFILE}.gz"\
-        && rm -rf ${BAKPATH}/${TARFILE}
-    echo -n Stopping: && docker stop $vm
-    if [ -f "${BACKUPSTORE}/${TARFILE}.gz" ];then success $LINENO "${BACKUPSTORE}/${TARFILE}.gz";fi
-    tar ztf "${BACKUPSTORE}/${TARFILE}.gz"
-  done
-
+ echo -e "Running backup for docker volume: $VOL "
+ docker run --rm \
+      -v $VOL:/$VOL.$STMP.backup \
+      -v $BAKPATH:/backup \
+      busybox \
+      tar -zc $* -f /backup/$VOL.$STMP.tar.gz /$VOL.$STMP.backup
+  ls $BAKPATH/$VOL.$STMP.tar.gz
+)
 }
+
 function collect_local_assets_all {
   declare -A local assetmap
   assetmap[".bashrc"]="$(/bin/ls -d ~)/.bashrc"
