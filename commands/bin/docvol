@@ -9,7 +9,7 @@ function usage {
 ### -remove|-delete|-r|-d)
 function do_remove_vol {
   for v in "${VOL[@]}";do
-    if [ $FORCE ];then docker volume rm ${v} && continue;fi
+    if [ $FORCE ];then docker volume rm ${v} && continue || break;fi
     get_size ${v}
     if $(yesno "remove volume $(blue ${v})");then
       if docker volume rm ${v};then log_s $LINENO removed volume ${v};fi
@@ -20,7 +20,9 @@ function do_remove_vol {
 ### -create|-c)
 function do_create_vol {
   for v in "${VOL[@]}";do
-    local s=$(docker volume create ${v}) && success $LINENO "volume ${s} exists"\
+    local s=$(docker volume create ${v})\
+      && (docker run --rm -v $s:/data alpine sh -c "chown -R 1000:1000 /data")\
+      && success $LINENO "volume ${s} exists"\
       && sleep 2 && ${0} -o ${s}
   done
   return 0

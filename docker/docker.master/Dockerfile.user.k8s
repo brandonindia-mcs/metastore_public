@@ -56,8 +56,8 @@ RUN sudo apt-get install -y\
 #   && curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl.sha256"\
 #   && echo "$(cat kubectl.sha256)  kubectl" | sha256sum --check\
 #   && sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
-RUN curl -LO "https://dl.k8s.io/release/v1.32.5/bin/linux/amd64/kubectl"\
-  && curl -LO "https://dl.k8s.io/release/v1.32.5/bin/linux/amd64/kubectl.sha256"\
+RUN curl -LO "https://dl.k8s.io/release/v1.32.2/bin/linux/amd64/kubectl"\
+  && curl -LO "https://dl.k8s.io/release/v1.32.2/bin/linux/amd64/kubectl.sha256"\
   && echo "$(cat kubectl.sha256)  kubectl" | sha256sum --check\
   && sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
 
@@ -74,79 +74,51 @@ RUN curl -O https://get.helm.sh/helm-v3.18.4-linux-amd64.tar.gz\
 # helm version
 # EOF
 
-RUN sudo apt update && sudo apt install -y tree
+RUN sudo apt update && sudo apt install -y tree\
+  && sudo wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64\
+  && sudo chmod a+x /usr/local/bin/yq
+
+# FROM devcontainer AS azcli
+RUN curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash\
+  && sudo apt-get update\
+  && sudo apt-get install -y apt-transport-https ca-certificates curl gnupg lsb-release
+
+RUN sudo mkdir -p /etc/apt/keyrings\
+  && curl -sLS https://packages.microsoft.com/keys/microsoft.asc |\
+     gpg --dearmor | sudo tee /etc/apt/keyrings/microsoft.gpg > /dev/null\
+  && sudo chmod go+r /etc/apt/keyrings/microsoft.gpg
+RUN AZ_DIST=$(lsb_release -cs)\
+  && echo "Types: deb\n\
+URIs: https://packages.microsoft.com/repos/azure-cli/\n\
+Suites: $AZ_DIST\n\
+Components: main\n\
+Architectures: $(dpkg --print-architecture)\n\
+Signed-by: /etc/apt/keyrings/microsoft.gpg" | sudo tee /etc/apt/sources.list.d/azure-cli.sources
+
+
+RUN mkdir -p $USERHOME/.azure\
+  && cat >>~/.azure/config <<EOF
+[cloud]
+name = AzureCloud
+
+[core]
+output = table
+only_show_errors = true
+error_recommendation = off
+no_color = false
+disable_progress_bar = false
+disable_confirm_prompt = true
+login_experience_v2	= false
+
+[defaults]
+location = eastus2
+
+[extension]
+use_dynamic_install = yes_without_prompt
+EOF
+
 # FROM postgresclient AS bashrc
 FROM devapps AS bashrc
-
-COPY assets.docker/git-prompt.sh $USERHOME/git-prompt.sh
-RUN cat >>~/.bashrc <<EOF
-. ~/git-prompt.sh
-function set_ps1 {
-PS1_ON="\[\033[0m\]on"
-PS1_COLON="\[\033[1;33m\]:"
-PS1_HOST="\[\033[0;34m\]\h"
-PS1_BRACKET_o="\[\033[0;33m\]["
-PS1_BRACKET_c="\[\033[0;33m\]]"
-
-PS1_GITSSH="\[\033[0;36m\]\\\`basename \\\$(git config --get-regexp "ssh.identity"|tail -1|awk '{ print \\\$2 }')\\\`"
-PS1_REPO="\[\033[0;36m\]\\\`git remote -v|head -1 2>/dev/null|awk '{print \\\$2}'\\\`"
-PS1_DATE="\[\033[0;31m\]\\\`date +%Y-%m-%d\ %H:%M:%S\\\`"
-PS1_GITUSER="\[\033[0;36m\]\\\`git config --get-regexp \"user.email\"|tail -1|sed \"s/user\.email//\"\\\`"
-PS1_BRANCH="\[\033[0;36m\]\\\`__git_ps1\\\`"
-PS1_OS="\[\033[3;34m\]\$(grep -iE ^ID= /etc/os-release 2>/dev/null|awk -F= '{print \$2}'|awk '{print \$1}')"
-PS1_USER="\[\033[3;34m\]\u\[\033[0m\]"
-PS1_HOST="\[\033[3;34m\]\h\[\033[0m\]"
-PS1_PWD="\[\033[0;37m\]\w\[\033[0m\]"
-if [ ! -z "\$VIRTUAL_ENV_PROMPT" ];then PS1_PY_ENV="\[\033[0;35m\](\`basename \$VIRTUAL_ENV\`)";fi
-
-PS1_GITLINE="\${PS1_GITSSH}\${PS1_COLON} \${PS1_REPO}"
-PS1_USERATHOST="\${PS1_USER}\[\033[2;37m\]@\[\033[0m\]\${PS1_HOST}\${PS1_BRANCH}\${PS1_PY_ENV}"
-PS1_RM="\[\033[0;31m\]\${__RM__}"
-ps1=
-ps1+="\n\${PS1_USERATHOST}"
-ps1+="\n\${PS1_GITLINE}"
-ps1+="\n\${PS1_DATE} \${PS1_BRACKET_o}\${PS1_PWD}\${PS1_BRACKET_c}"
-ps1+="\n\${PS1_RM}\[\033[1;32m\]\$ \[\033[0m\]"
-echo \$ps1
-}
-export PS1=\$(set_ps1)
-EOF
-
-# RUN mkdir -p $USERHOME/bin && echo "\
-# [user]\n\
-#   name = \$gitname\n\
-#   email = \$gitemail\n\
-# [core]\n\
-#   excludesfile = ~/gitignore_global\n\
-#   editor = vim\n\
-#   autocrlf = true\n\
-# [init]\n\
-#   defaultBranch = master\n\
-# [advice]\n\
-#   statusHints = false\n\
-# [ssh]\n\
-#   identity = \$gitkey"\
-# >$USERHOME/.gitconfig
-
-RUN cat >>~/.bashrc <<EOF
-echo "[user]
-  name = \"\$gitname\"
-  email = \$gituser
-[core]
-  excludesfile = ~/gitignore_global
-  editor = vim
-  autocrlf = input
-[init]
-  defaultBranch = master
-[advice]
-  statusHints = false
-[ssh]
-  identity = \$gitkey
-[safe]
-	directory = /home/developer/devnet/appdev"\
-  >~/.gitconfig
-EOF
-
 RUN cat >>~/.bashrc <<EOF
 # if [ ! -d \$NVM_HOME ];then install_nvm;fi
 # installnode
@@ -167,8 +139,41 @@ echo kubectl: \$(kubectl version --client)
 # RUN cat >>~/.bashrc <<EOF
 echo helm: \$(helm version)
 
-# RUN cat >>~/.bashrc <<EOF
-. ~/appdev/bashrc-hook.sh
+RUN mkdir -p $USERHOME/.azure\
+  && cat >~/.azure/config <<EOF
+[cloud]
+name = AzureCloud
+
+[core]
+output = table
+only_show_errors = true
+error_recommendation = off
+no_color = false
+disable_progress_bar = false
+disable_confirm_prompt = true
+login_experience_v2	= false
+
+[defaults]
+location = eastus2
+
+[extension]
+use_dynamic_install = yes_without_prompt
+EOF
+
+RUN mkdir -p $USERHOME/bin\
+  && cat >~/bin/backup-env.sh <<EOF
+#!/bin/bash
+
+###
+# /bin/bash /home/developer/bin/backup-env.sh /home/developer/devnet/offline-product-catalog /home/developer/product-catalog
+###
+(
+path="\${1:-~/devnet}" && echo backup-env.sh: path is \$path\
+  && search_path="\${2:-~}" && echo backup-env.sh: store_path is \$search_path\
+  && cd \$search_path\
+  && /usr/bin/find . -type f -name '*.env' | tar -czf "\$path/env-files.\$(date +%Y%m%d_%H%M).tar.gz" -T -\
+  || echo no env backup: \$1
+)
 EOF
 
 FROM bashrc AS ending
@@ -185,19 +190,19 @@ RUN chmod 400 $FSK\
   && apt-get clean\
   && rm -rf /var/lib/apt/lists/*
 
-RUN cat >/entrypoint.sh <<EOF
-#!/bin/bash
-set -euo pipefail
-echo "Setting ownership of \${VOL_MNT} to \$(id -u):\$(id -g)"
-sudo chown -R \$(id -u):\$(id -g) "\${VOL_MNT}"
-if [ \$# -eq 0 ]; then
-  exec bash
-else
-  exec "\$@"
-fi
-EOF
-
-RUN chmod +x /entrypoint.sh
+# FROM ending AS entrypoint
+# RUN cat >/entrypoint.sh <<EOF
+# #!/bin/bash
+# set -euo pipefail
+# echo "Setting ownership of \${VOL_MNT} to \$(id -u):\$(id -g)"
+# sudo chown -R \$(id -u):\$(id -g) "\${VOL_MNT}"
+# if [ \$# -eq 0 ]; then
+#   exec bash
+# else
+#   exec "\$@"
+# fi
+# EOF
+# RUN chmod +x /entrypoint.sh
 # Set entrypoint
 # ENTRYPOINT ["/entrypoint.sh"]
 # CMD ["/bin/bash"]
@@ -211,6 +216,7 @@ RUN echo 'echo -e "\\nuser image ('${BUILD_DATE}')"\n\
 '>>~/.bashrc
 
 RUN sudo usermod -a -G docker $(whoami)
+
 
 # VOLUME ["/var/run/docker.sock"]
 # VOLUME ["/var/lib/docker"]
@@ -293,7 +299,48 @@ RUN sudo usermod -a -G docker $(whoami)
 # cat $SECURE_ASSETS/../docker.master/Dockerfile.user.k8s >$SECURE_ASSETS/../Dockerfile.user\
 #   && image -t k8s user
 
-# Thu Oct 16 09:27:40 CDT 2025
+# Thu Oct 16 17:49:03 CDT 2025
+# Command: 
+# cat $SECURE_ASSETS/../docker.master/Dockerfile.user.k8s >$SECURE_ASSETS/../Dockerfile.user\
+#   && image -t k8s user
+
+# Thu Oct 16 19:23:50 CDT 2025
+# Command: 
+# cat $SECURE_ASSETS/../docker.master/Dockerfile.user.k8s >$SECURE_ASSETS/../Dockerfile.user\
+#   && image -t k8s user
+
+# Thu Oct 16 19:28:03 CDT 2025
+# Command: 
+# cat $SECURE_ASSETS/../docker.master/Dockerfile.user.k8s >$SECURE_ASSETS/../Dockerfile.user\
+#   && image -t k8s user
+
+# Tue Oct 21 10:14:38 CDT 2025
+# Command: 
+# cat $SECURE_ASSETS/../docker.master/Dockerfile.user.k8s >$SECURE_ASSETS/../Dockerfile.user\
+#   && image -t k8s user
+
+# Tue Nov 11 09:38:56 CST 2025
+# Command: 
+# cat $SECURE_ASSETS/../docker.master/Dockerfile.user.k8s >$SECURE_ASSETS/../Dockerfile.user\
+#   && image -t k8s user
+
+# Sun Nov 16 16:36:27 CST 2025
+# Command: 
+# cat $SECURE_ASSETS/../docker.master/Dockerfile.user.k8s >$SECURE_ASSETS/../Dockerfile.user\
+#   && image -t k8s user
+
+# Mon Nov 17 08:09:22 CST 2025
+# Command: 
+# cat $SECURE_ASSETS/../docker.master/Dockerfile.user.k8s >$SECURE_ASSETS/../Dockerfile.user\
+#   && image -t k8s user
+
+# Thu Nov 20 17:12:56 CST 2025
+# Command: 
+# cat $SECURE_ASSETS/../docker.master/Dockerfile.user.k8s >$SECURE_ASSETS/../Dockerfile.user\
+#   && image -t k8s user
+
+
+# Wed Nov 26 11:08:01 CST 2025
 # Command: 
 # cat $SECURE_ASSETS/../docker.master/Dockerfile.user.k8s >$SECURE_ASSETS/../Dockerfile.user\
 #   && image -t k8s user

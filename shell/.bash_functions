@@ -49,8 +49,8 @@ function yesno-Y { read -p "$1 yes (default) or no: " && if [[ ${REPLY,,} = n   
 function yesno-Y { read -p "$1 yes (default) or no: " && if [[ ${REPLY} = n     ]] || [[ ${REPLY} = no      ]]; then return 9; fi; return 0; }
 function yesno-N { read -p "$1 yes or no (default): " && if [[ ${REPLY,,} = y   ]] || [[ ${REPLY,,} = yes   ]]; then return 0; fi; return 9; }
 function yesno-N { read -p "$1 yes or no (default): " && if [[ ${REPLY,,} = y   ]] || [[ ${REPLY} = yes     ]]; then return 0; fi; return 9; }
-function unindex { $(which git) update-index --skip-worktree "${*}"; }
-function reindex { $(which git) update-index --no-skip-worktree "${*}"; }
+function unindex { sudo chmod 664 __UNINDEXED__  && git update-index --skip-worktree "${*}" && echo "${*}" >>__UNINDEXED__ && sudo chmod 444 __UNINDEXED__ ; }
+function reindex { sudo chmod 664 __UNINDEXED__  && git update-index --no-skip-worktree "${*}" && sed -i "/${*}/d" __UNINDEXED__ && sudo chmod 444 __UNINDEXED__ ; }
 function cleanwhite { sed -i -e 's/\r$//' "$1" ; }
 function toupper { echo ${*^^}; }
 function tonix { str=~/$(tr \\\\ / <<<"$*") && sed 's/\\\\/\\\//g' <<<"$str" | tr -d : ; }
@@ -67,11 +67,8 @@ function get_integration_keyname { get_keyname $1 ;}
 function get_application_keyname { get_keyname $1 ;}
 function get_developer_keyname { get_keyname $1 ;}
 function print_critical_values { unset CRITICAL_VALUES; for x in $@;do CRITICAL_VALUES+=($x);done; if [ ${#CRITICAL_VALUES[@]} -gt 0 ];then echo Critical Values: && for v in ${CRITICAL_VALUES[@]};do printf "%20s %s\n" $v: ${!v};done;else usage ${FUNCNAME[0]}: pass critical variable names as arguments;fi ; }
-# alias gitwho="git config --get-regexp \"user|identity\""
 # alias azwho="az account show --query \"{Subscription:name,SubscriptionID:id,Type:user.type,User:user.name,Tenant:tenantId}\" -o table"
 function gitwho { git config --get-regexp "user|identity"; }
-# function gitwho { git config --get-regexp "user.email"|awk "{ print $2 }"; }
-# function gitwho { git config --get-regexp "user.email"|sed "s/user\.email//"; }
 function azwho { az account show --query "{Subscription:name,SubscriptionID:id,Type:user.type,User:user.name,Tenant:tenantId}" -o table ; }
 # alias azt="az login -t ${AZTENANT} >/dev/null && az account set --subscription ${AZSUB} && azwho"
 function azt { az login -t ${AZTENANT} >/dev/null && az account set --subscription ${AZSUB} && azwho ; }

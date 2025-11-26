@@ -17,6 +17,7 @@ RUN ln -fs /usr/share/zoneinfo/US/Central /etc/localtime\
   && dpkg-reconfigure --frontend noninteractive tzdata
 
 # FROM settime AS history
+FROM top AS history
 ARG DOCKERENV=developer
 ENV DOCKERENV=$DOCKERENV
 RUN echo '### PERSIST HISTORY ###\n\
@@ -27,24 +28,19 @@ if touch ${HOME}/history/${DOCKERENV}.history;then\n\
 else grey History not persistent;fi\n\
 '\
 >>/etc/bash.bashrc
-VOLUME ["$USERHOME/devnet", "$USERHOME/.m2", "$USERHOME/history"]
-# -v ~/devnet:/home/developer/devnet\
-#  -v .m2:/home/developer/.m2\
-#  -v history:/home/developer/history\
+# VOLUME ["$USERHOME/devnet", "$USERHOME/.m2", "$USERHOME/history"]
+VOLUME ["$USERHOME/devnet", "$USERHOME/history"]
 
-# function unindex { git update-index --skip-worktree "${*}"; }\n\
-# function reindex { git update-index --no-skip-worktree "${*}"; }\n\
 RUN echo 'function gitwho { git config --get-regexp "user|identity"; }\n\
-function unindex { sudo chmod 664 __UNINDEXED__  && git update-index --skip-worktree "${*}" && echo "${*}" >>__UNINDEXED__ && sudo chmod 444 __UNINDEXED__ ; }\n\
-function reindex { sudo chmod 664 __UNINDEXED__  && git update-index --no-skip-worktree "${*}" && sed -i "/${*}/d" __UNINDEXED__ && sudo chmod 444 __UNINDEXED__ ; }\n\
+function unindex { sudo chmod 664 __UNINDEXED__  ; git update-index --skip-worktree "${*}" && echo "${*}" >>__UNINDEXED__ ; sudo chmod 444 __UNINDEXED__ ; }\n\
+function reindex { sudo chmod 664 __UNINDEXED__  ; git update-index --no-skip-worktree "${*}" && sed -i "/${*}/d" __UNINDEXED__ ; sudo chmod 444 __UNINDEXED__ ; }\n\
 '\
 >>/etc/bash.bashrc
 ##############################################################################
 
-# FROM history AS git
-RUN sudo apt-get install -y git
+FROM history AS git
+RUN apt-get install -y git
 # FROM git AS useradd
-FROM top AS useradd
 ARG gituser
 ARG HOMEDIR=$HOMEDIR
 ARG THISUSER=$gituser
@@ -52,7 +48,16 @@ ARG USERHOME=$HOMEDIR/$THISUSER
 RUN groupadd -g 1000 $THISUSER
 RUN useradd -d $USERHOME -s /bin/bash -m $THISUSER -u 1000 -g 1000
 
-FROM useradd AS gituser
+RUN cat >>$USERHOME/.bashrc <<EOF
+. ~/appdev/bashrc-hook.sh
+EOF
+
+RUN echo '\n\
+### THIS PREVENTS SUDO FROM YELLING ABOUT NO HOSTNAME\n\
+if ! grep -q "$(hostname)" /etc/hosts; then echo -e "\n127.0.0.1 $(hostname)" | sudo tee -a /etc/hosts 2>/dev/null;fi\n\
+' >>$USERHOME/.bashrc
+
+# FROM useradd AS gituser
 ENV GIT_SSH=$USERHOME/bin/git-ssh
 ARG GIT_IGNORE_GLOBAL=$USERHOME/gitignore_global
 
@@ -74,7 +79,7 @@ RUN chmod 600 $SKP/$SK
 RUN chown -R $THISUSER:$THISUSER $USERHOME
 
 
-FROM gituser AS useridentity
+# FROM gituser AS useridentity
 ARG THISUSER=$gituser
 ARG HOMEDIR=$HOMEDIR
 ARG USERHOME=$HOMEDIR/$THISUSER
@@ -97,13 +102,13 @@ RUN chown 1000:1000 $USERHOME/.gitconfig
 RUN apt-get clean
 
 
-FROM useridentity AS gitssh
+# FROM useridentity AS gitssh
 RUN mkdir -p $USERHOME/bin\
   && echo 'ssh -i $(git config --get ssh.identity) -F /dev/null -p 22 $*'\
   >$USERHOME/bin/git-ssh
 RUN chmod u+x $USERHOME/bin/git-ssh
 
-FROM gitssh AS userpart1
+# FROM gitssh AS userpart1
 RUN echo '### USER CONTAINER IMAGE SPECIFIC 1 ###\n\
 alias azwho="az account show --query \"{Subscription:name,Type:user.type,User:user.name}\" -o table"\n\
 alias azp="az login --service-principal -u ${SUPER} -t ${AZTENANT} -p ${AZAZCERT} >/dev/null && azwho"\n\
@@ -111,29 +116,30 @@ alias azt="az login -t ${AZTENANT} >/dev/null && az account set --subscription $
 '\
 >>$USERHOME/.bashrc
 
-FROM userpart1 AS docker1
-RUN sudo apt install -y\
+# FROM git AS docker1
+FROM git AS docker
+RUN apt install -y\
   ca-certificates\
   curl\
   gnupg\
   lsb-release\
- && sudo mkdir -p /etc/apt/keyrings\
+ && mkdir -p /etc/apt/keyrings\
  && curl -fsSL https://download.docker.com/linux/ubuntu/gpg |\
-    sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+    gpg --dearmor -o /etc/apt/keyrings/docker.gpg
 RUN echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg]\
   https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" |\
-    sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+    tee /etc/apt/sources.list.d/docker.list > /dev/null
 
 # FROM docker AS docker2
-RUN sudo apt update\
-  && sudo apt install -y\
+RUN apt update\
+  && apt install -y\
   docker-ce\
   docker-ce-cli\
   containerd.io\
   docker-buildx-plugin\
   docker-compose-plugin
 
-RUN sudo usermod -a -G docker $(whoami);
+RUN usermod -a -G docker $(whoami);
 
 # FROM docker2 AS dockertest
 RUN echo '\n\
@@ -152,41 +158,60 @@ umask 002\n\
 ' \
 >>$USERHOME/.bashrc
 
-FROM docker1 AS base
+RUN cat >/entrypoint.sh <<EOF
+#!/bin/bash
+set -euo pipefail
+echo "Setting ownership of \${VOL_MNT} to \$(id -u):\$(id -g)"
+sudo chown -R \$(id -u):\$(id -g) "\${VOL_MNT}"
+if [ \$# -eq 0 ]; then
+  exec bash
+else
+  exec "\$@"
+fi
+EOF
+RUN chmod +x /entrypoint.sh
+
+FROM docker AS base
 # FROM userpart1 AS asuser
 USER $THISUSER
 WORKDIR $USERHOME
 RUN sudo add-apt-repository ppa:deadsnakes/ppa -y\
   && sudo apt install python3-pip -yq\
-  && sudo update-alternatives --install /usr/bin/python python /usr/bin/python3 10\
-  && sudo update-alternatives --install /usr/bin/py py /usr/bin/python 10
-# RUN apt-get upgrade -y
+  && sudo update-alternatives --install /usr/bin/python python /usr/bin/python3 10
   ##############################################################################
 
 RUN sed -i 's/HISTSIZE=1000/HISTSIZE=/' ~/.bashrc
 RUN sed -i 's/HISTFILESIZE=2000/HISTFILESIZE=/' ~/.bashrc
 
 # FROM asuser AS python312
-RUN sudo add-apt-repository ppa:deadsnakes/ppa -y\
-  && sudo apt -q update\
-  && sudo apt install -y python3.12\
-  && sudo apt install -y python3.12-venv\
-  && sudo update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.12 20
-RUN sudo apt-get install python3-pip -yq\
- && python3.12 -m ensurepip --upgrade\
-  && pip install ipykernel --force-reinstall\
-  && pip install jupyter
+# RUN sudo add-apt-repository ppa:deadsnakes/ppa -y\
+#   && sudo apt -q update\
+#   && sudo apt install -y python3.12\
+#   && sudo apt install -y python3.12-venv\
+#   && sudo update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.12 20
+# RUN sudo apt-get install python3-pip -yq\
+#  && python3.12 -m ensurepip --upgrade\
+#   && pip install ipykernel --force-reinstall\
+#   && pip install jupyter
 
+# FROM therest AS python310
 RUN sudo apt install -y python3.10\
   && sudo apt install -y python3.10-venv
-RUN sudo update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.10 30\
+RUN sudo update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.10 100\
   && sudo apt-get install python3-pip -yq\
   && python3.10 -m pip install --upgrade pip
 
+# FROM therest AS python311
+RUN sudo apt install -y python3.11\
+  && sudo apt install -y python3.11-venv
+RUN sudo update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.11 110
+RUN sudo apt-get install python3-pip -yq\
+  && python3.11 -m pip install --upgrade pip
+
 RUN echo|cat >>~/.bashrc <<EOF
-echo "use sudo update-alternatives --set python3 [PATH] to change python"
+echo -e "use \e[3msudo update-alternatives --set python3 [PATH]\e[0m] to change python"
 sudo update-alternatives --list python3
-echo -n "python version: $(python --version)"
+echo -en "\\tusing: \$(python --version)"
 EOF
 
 # FROM python312 AS python312bashrc
@@ -203,9 +228,10 @@ function pyenv {
 if [ -z "\$1" ];then echo need env name && return 2;fi
 env=.\${1%/}-\$(python --version | tr '[:upper:]' '[:lower:]' | sed 's/python//' | sed 's/\ //').nogit
 if [ -d \$env ];then echo . ./\$env/bin/activate && return 0;fi
-echo creating \$env
 python -m venv \$env
 echo '. ~/.bashrc' >>./\$env/bin/activate
+echo 'which python' >>./\$env/bin/activate
+echo 'which pip' >>./\$env/bin/activate
 echo . ./\$env/bin/activate
 }
 pyenv \$1
@@ -214,8 +240,7 @@ EOF
 RUN sudo chmod u+x ~/bin/pyenv
 
 ### KEYGEN
-RUN mkdir -p ~/bin\
-cat >~/bin/keygen <<EOF
+RUN cat >~/bin/keygen <<EOF
 #!/bin/bash
 (
 function usage { cat <<EOM
@@ -275,6 +300,7 @@ alias azt="az login -t ${AZTENANT} >/dev/null && az account set --subscription $
 alias ls="ls -Altr --color=auto"\n\
 alias grep="grep -n --color=auto"\n\
 alias compose="docker compose"\n\
+alias py="python"\n\
 '\
 >>~/.bashrc
 RUN echo '\n\
@@ -340,29 +366,29 @@ RUN cat >>~/.bashrc <<EOF
 . ~/git-prompt.sh
 function set_ps1 {
 PS1_ON="\[\033[0m\]on"
-PS1_COLON="\[\033[1;33m\]:"
+PS1_COLON="\[\033[0m\]:"
 PS1_HOST="\[\033[0;34m\]\h"
-PS1_BRACKET_o="\[\033[0;33m\]["
-PS1_BRACKET_c="\[\033[0;33m\]]"
+PS1_BRACKET_o="\[\033[0;35m\]["
+PS1_BRACKET_c="\[\033[0;35m\]]"
+PS1_at="\[\033[0m\]@\[\033[0m\]"
 
+PS1_DATE="\[\033[0;31m\]\\\`date +%Y-%m-%d\ %H:%M:%S\\\`"
 PS1_GITSSH="\[\033[0;36m\]\\\`basename \\\$(git config --get-regexp "ssh.identity"|tail -1|awk '{ print \\\$2 }')\\\`"
 PS1_REPO="\[\033[0;36m\]\\\`git remote -v|head -1 2>/dev/null|awk '{print \\\$2}'\\\`"
-PS1_DATE="\[\033[0;31m\]\\\`date +%Y-%m-%d\ %H:%M:%S\\\`"
 PS1_GITUSER="\[\033[0;36m\]\\\`git config --get-regexp \"user.email\"|tail -1|sed \"s/user\.email//\"\\\`"
-PS1_BRANCH="\[\033[0;36m\]\\\`__git_ps1\\\`"
+PS1_BRANCH="\[\033[0;36m\](\\\$(git rev-parse --abbrev-ref HEAD 2>/dev/null))"
 PS1_OS="\[\033[3;34m\]\$(grep -iE ^ID= /etc/os-release 2>/dev/null|awk -F= '{print \$2}'|awk '{print \$1}')"
 PS1_USER="\[\033[3;34m\]\u\[\033[0m\]"
 PS1_HOST="\[\033[3;34m\]\h\[\033[0m\]"
-PS1_PWD="\[\033[0;37m\]\w\[\033[0m\]"
-if [ ! -z "\$VIRTUAL_ENV_PROMPT" ];then PS1_PY_ENV="\[\033[0;35m\](\`basename \$VIRTUAL_ENV\`)";fi
+PS1_PWD="\[\033[0;35m\]\w\[\033[0m\]"
 
 PS1_GITLINE="\${PS1_GITSSH}\${PS1_COLON} \${PS1_REPO}"
-PS1_USERATHOST="\${PS1_USER}\[\033[2;37m\]@\[\033[0m\]\${PS1_HOST}\${PS1_BRANCH}\${PS1_PY_ENV}"
+PS1_USERATHOST="\${PS1_USER}\${PS1_at}\${PS1_HOST} \${PS1_BRANCH}"
 PS1_RM="\[\033[0;31m\]\${__RM__}"
 ps1=
 ps1+="\n\${PS1_USERATHOST}"
 ps1+="\n\${PS1_GITLINE}"
-ps1+="\n\${PS1_DATE} \${PS1_BRACKET_o}\${PS1_PWD}\${PS1_BRACKET_c}"
+ps1+="\n\${PS1_DATE} \[\033[0;32m\]\\\${VIRTUAL_ENV_PROMPT}\${PS1_BRACKET_o}\${PS1_PWD}\${PS1_BRACKET_c}"
 ps1+="\n\${PS1_RM}\[\033[1;32m\]\$ \[\033[0m\]"
 echo \$ps1
 }
@@ -382,7 +408,9 @@ echo "[user]
 [advice]
   statusHints = false
 [ssh]
-  identity = \$gitkey"\
+  identity = \$gitkey
+[safe]
+	directory = /home/developer/devnet/appdev"\
   >~/.gitconfig
 EOF
 
@@ -390,6 +418,12 @@ ARG BUILD_DATE
 LABEL build-date=${BUILD_DATE}
 RUN echo 'echo -e "\\nuser:base ('${BUILD_DATE}')"\n\
 '>>~/.bashrc
+
+RUN curl -SsL https://packages.httpie.io/deb/KEY.gpg | sudo gpg --dearmor -o /usr/share/keyrings/httpie.gpg\
+  && echo "deb [arch=amd64 signed-by=/usr/share/keyrings/httpie.gpg] https://packages.httpie.io/deb ./" | sudo tee /etc/apt/sources.list.d/httpie.list\
+  && sudo apt update\
+  && sudo apt install httpie
+
 # RUN sudo apt-get clean\
 #   && sudo rm -rf /var/lib/apt/lists/*
 
@@ -410,7 +444,87 @@ RUN echo 'echo -e "\\nuser:base ('${BUILD_DATE}')"\n\
 # cat $SECURE_ASSETS/../docker.master/Dockerfile.user.base >$SECURE_ASSETS/../Dockerfile.user\
 #   && image -t base user
 
-# Wed Oct 15 16:40:28 CDT 2025
+# Thu Oct 16 09:17:20 CDT 2025
 # Command: 
 # cat $SECURE_ASSETS/../docker.master/Dockerfile.user.base >$SECURE_ASSETS/../Dockerfile.user\
-#   && image --no-cache -t base user
+#   && image -t base user
+
+# Thu Oct 16 09:18:49 CDT 2025
+# Command: 
+# cat $SECURE_ASSETS/../docker.master/Dockerfile.user.base >$SECURE_ASSETS/../Dockerfile.user\
+#   && image -t base user
+
+# Thu Oct 16 09:19:43 CDT 2025
+# Command: 
+# cat $SECURE_ASSETS/../docker.master/Dockerfile.user.base >$SECURE_ASSETS/../Dockerfile.user\
+#   && image -t base user
+
+# Thu Oct 16 09:24:06 CDT 2025
+# Command: 
+# cat $SECURE_ASSETS/../docker.master/Dockerfile.user.base >$SECURE_ASSETS/../Dockerfile.user\
+#   && image -t base user
+
+# Thu Oct 16 09:26:34 CDT 2025
+# Command: 
+# cat $SECURE_ASSETS/../docker.master/Dockerfile.user.base >$SECURE_ASSETS/../Dockerfile.user\
+#   && image -t base user
+
+# Thu Oct 16 19:23:49 CDT 2025
+# Command: 
+# cat $SECURE_ASSETS/../docker.master/Dockerfile.user.base >$SECURE_ASSETS/../Dockerfile.user\
+#   && image -t base user
+
+# Thu Oct 16 19:24:05 CDT 2025
+# Command: 
+# cat $SECURE_ASSETS/../docker.master/Dockerfile.user.base >$SECURE_ASSETS/../Dockerfile.user\
+#   && image -t base user
+
+# Sun Nov 16 16:34:52 CST 2025
+# Command: 
+# cat $SECURE_ASSETS/../docker.master/Dockerfile.user.base >$SECURE_ASSETS/../Dockerfile.user\
+#   && image -t base user
+
+# Mon Nov 17 07:58:17 CST 2025
+# Command: 
+# cat $SECURE_ASSETS/../docker.master/Dockerfile.user.base >$SECURE_ASSETS/../Dockerfile.user\
+#   && image -t base user
+
+# Thu Nov 20 16:37:47 CST 2025
+# Command: 
+# cat $SECURE_ASSETS/../docker.master/Dockerfile.user.base >$SECURE_ASSETS/../Dockerfile.user\
+#   && image -t base user
+
+# Thu Nov 20 16:40:28 CST 2025
+# Command: 
+# cat $SECURE_ASSETS/../docker.master/Dockerfile.user.base >$SECURE_ASSETS/../Dockerfile.user\
+#   && image -t base user
+
+# Thu Nov 20 16:41:58 CST 2025
+# Command: 
+# cat $SECURE_ASSETS/../docker.master/Dockerfile.user.base >$SECURE_ASSETS/../Dockerfile.user\
+#   && image -t base user
+
+# Thu Nov 20 16:47:53 CST 2025
+# Command: 
+# cat $SECURE_ASSETS/../docker.master/Dockerfile.user.base >$SECURE_ASSETS/../Dockerfile.user\
+#   && image -t base user
+
+# Thu Nov 20 17:02:49 CST 2025
+# Command: 
+# cat $SECURE_ASSETS/../docker.master/Dockerfile.user.base >$SECURE_ASSETS/../Dockerfile.user\
+#   && image -t base user
+
+# Thu Nov 20 17:08:17 CST 2025
+# Command: 
+# cat $SECURE_ASSETS/../docker.master/Dockerfile.user.base >$SECURE_ASSETS/../Dockerfile.user\
+#   && image -t base user
+
+# Thu Nov 20 17:11:33 CST 2025
+# Command: 
+# cat $SECURE_ASSETS/../docker.master/Dockerfile.user.base >$SECURE_ASSETS/../Dockerfile.user\
+#   && image -t base user
+
+# Fri Nov 21 09:31:08 CST 2025
+# Command: 
+# cat $SECURE_ASSETS/../docker.master/Dockerfile.user.base >$SECURE_ASSETS/../Dockerfile.user\
+#   && image -t base user
