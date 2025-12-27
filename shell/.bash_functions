@@ -48,7 +48,7 @@ function yesno { yesno-Y "$*"; }
 function yesno-Y { read -p "$1 yes (default) or no: " && if [[ ${REPLY,,} = n   ]] || [[ ${REPLY,,} = no    ]]; then return 9; fi; return 0; }
 function yesno-Y { read -p "$1 yes (default) or no: " && if [[ ${REPLY} = n     ]] || [[ ${REPLY} = no      ]]; then return 9; fi; return 0; }
 function yesno-N { read -p "$1 yes or no (default): " && if [[ ${REPLY,,} = y   ]] || [[ ${REPLY,,} = yes   ]]; then return 0; fi; return 9; }
-function yesno-N { read -p "$1 yes or no (default): " && if [[ ${REPLY,,} = y   ]] || [[ ${REPLY} = yes     ]]; then return 0; fi; return 9; }
+function yesno-N { read -p "$1 yes or no (default): " && if [[ ${REPLY} = y   ]] || [[ ${REPLY} = yes     ]]; then return 0; fi; return 9; }
 function unindex { sudo chmod 664 __UNINDEXED__  && git update-index --skip-worktree "${*}" && echo "${*}" >>__UNINDEXED__ && sudo chmod 444 __UNINDEXED__ ; }
 function reindex { sudo chmod 664 __UNINDEXED__  && git update-index --no-skip-worktree "${*}" && sed -i "/${*}/d" __UNINDEXED__ && sudo chmod 444 __UNINDEXED__ ; }
 function cleanwhite { sed -i -e 's/\r$//' "$1" ; }

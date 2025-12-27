@@ -157,6 +157,7 @@ case $i in
 -network|-n)
   NETWORK=$@ && NET=1
   shift
+  if [ ! $# -eq 0 ];  then docker network create $1 ; shift; fi
   if [ ! $# -eq 0 ];  then usage no args for network; fi
   if [ ${NET} ];      then do_network; fi
   exit 0
@@ -210,12 +211,20 @@ case $i in
   if [ ${BVOL} ];     then do_backup $*; fi
   exit 0
   ;;
+-ip)
+  shift
+  if [ $# -eq 0 ];  then usage no container name && exit 1; fi
+  docker inspect -f '{{range.NetworkSettings.Networks}}{{.IPAddress}}{{end}}' $1
+  exit 0
+  ;;
 -help|-h)
   help
   exit 0
   ;;
 esac
 done
+
+devol $1
 )
 # log $LINENO printing user volumes:
 # docker volume ls|grep -v -E '[a-z0-9]{64}'|sort && echo

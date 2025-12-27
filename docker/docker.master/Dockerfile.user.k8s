@@ -6,7 +6,7 @@ ARG USERHOME=$HOMEDIR/$THISUSER
 USER $THISUSER
 WORKDIR $USERHOME
 
-FROM devcontainer AS devapps
+# FROM devcontainer AS devapps
 
 # RUN sudo az aks install-cli
 # RUN sudo az extension add --name aks-preview
@@ -27,8 +27,8 @@ RUN sudo update-alternatives --install /usr/bin/tf tf /usr/bin/terraform 10\
 RUN sudo apt-get install -y zip
 
 # FROM mongo AS postgresclient
-RUN sudo apt install -y postgresql-client\
-  && sudo apt install -y\
+RUN sudo apt-get install -y postgresql-client\
+  && sudo apt-get install -y\
     inetutils-tools\
     dnsutils\
     traceroute\
@@ -45,19 +45,14 @@ RUN sudo apt install -y postgresql-client\
   && sudo apt-get update\
   && sudo apt-get install -y powershell
 
-RUN sudo apt-get install -y\
-  bsdmainutils\
-  gettext\
-  netcat
-
 # FROM rubyrails AS k8s
 # Install kubectl and Helm
 # RUN curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"\
 #   && curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl.sha256"\
 #   && echo "$(cat kubectl.sha256)  kubectl" | sha256sum --check\
 #   && sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
-RUN curl -LO "https://dl.k8s.io/release/v1.32.2/bin/linux/amd64/kubectl"\
-  && curl -LO "https://dl.k8s.io/release/v1.32.2/bin/linux/amd64/kubectl.sha256"\
+RUN curl -LO "https://dl.k8s.io/release/v1.32.5/bin/linux/amd64/kubectl"\
+  && curl -LO "https://dl.k8s.io/release/v1.32.5/bin/linux/amd64/kubectl.sha256"\
   && echo "$(cat kubectl.sha256)  kubectl" | sha256sum --check\
   && sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
 
@@ -66,15 +61,15 @@ RUN rm -rf ~/kubectl*
 # echo kubectl: \$(kubectl version --client)
 # EOF
 
-RUN curl -O https://get.helm.sh/helm-v3.18.4-linux-amd64.tar.gz\
-  && tar zxf helm-v3.18.4-linux-amd64.tar.gz\
-  && sudo mv linux-amd64/helm /usr/local/bin\
-  && rm -rf helm-v3.18.4-linux-amd64.tar.gz linux-amd64
+# RUN curl -O https://get.helm.sh/helm-v3.18.4-linux-amd64.tar.gz\
+#   && tar zxf helm-v3.18.4-linux-amd64.tar.gz\
+#   && sudo mv linux-amd64/helm /usr/local/bin\
+#   && rm -rf helm-v3.18.4-linux-amd64.tar.gz linux-amd64
 # RUN cat >>~/.bashrc <<EOF
 # helm version
 # EOF
 
-RUN sudo apt update && sudo apt install -y tree\
+RUN sudo apt-get update && sudo apt-get install -y tree\
   && sudo wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64\
   && sudo chmod a+x /usr/local/bin/yq
 
@@ -96,29 +91,39 @@ Architectures: $(dpkg --print-architecture)\n\
 Signed-by: /etc/apt/keyrings/microsoft.gpg" | sudo tee /etc/apt/sources.list.d/azure-cli.sources
 
 
-RUN mkdir -p $USERHOME/.azure\
-  && cat >>~/.azure/config <<EOF
-[cloud]
-name = AzureCloud
+# RUN mkdir -p $USERHOME/.azure\
+#   && cat >>~/.azure/config <<EOF
+# [cloud]
+# name = AzureCloud
 
-[core]
-output = table
-only_show_errors = true
-error_recommendation = off
-no_color = false
-disable_progress_bar = false
-disable_confirm_prompt = true
-login_experience_v2	= false
+# [core]
+# output = table
+# only_show_errors = true
+# error_recommendation = off
+# no_color = false
+# disable_progress_bar = false
+# disable_confirm_prompt = true
+# login_experience_v2	= false
 
-[defaults]
-location = eastus2
+# [defaults]
+# location = eastus2
 
-[extension]
-use_dynamic_install = yes_without_prompt
-EOF
+# [extension]
+# use_dynamic_install = yes_without_prompt
+# EOF
+
+RUN sudo apt-get install -y\
+  bsdmainutils\
+  gettext
+
+# FROM docker AS apps
+RUN curl -SsL https://packages.httpie.io/deb/KEY.gpg | sudo gpg --dearmor -o /usr/share/keyrings/httpie.gpg\
+  && echo "deb [arch=amd64 signed-by=/usr/share/keyrings/httpie.gpg] https://packages.httpie.io/deb ./" | sudo tee /etc/apt/sources.list.d/httpie.list\
+  && sudo apt-get update\
+  && sudo apt-get install httpie
 
 # FROM postgresclient AS bashrc
-FROM devapps AS bashrc
+# FROM devapps AS bashrc
 RUN cat >>~/.bashrc <<EOF
 # if [ ! -d \$NVM_HOME ];then install_nvm;fi
 # installnode
@@ -129,35 +134,12 @@ RUN cat >>~/.bashrc <<EOF
 
 # RUN cat >>~/.bashrc <<EOF
 alias py=python
-echo python: \$(py -V)
-echo pip: \$(pip -V)
-echo openssl \$(openssl version)
 
 # RUN cat >>~/.bashrc <<EOF
 echo kubectl: \$(kubectl version --client)
 
 # RUN cat >>~/.bashrc <<EOF
 echo helm: \$(helm version)
-
-RUN mkdir -p $USERHOME/.azure\
-  && cat >~/.azure/config <<EOF
-[cloud]
-name = AzureCloud
-
-[core]
-output = table
-only_show_errors = true
-error_recommendation = off
-no_color = false
-disable_progress_bar = false
-disable_confirm_prompt = true
-login_experience_v2	= false
-
-[defaults]
-location = eastus2
-
-[extension]
-use_dynamic_install = yes_without_prompt
 EOF
 
 RUN mkdir -p $USERHOME/bin\
@@ -176,7 +158,8 @@ path="\${1:-~/devnet}" && echo backup-env.sh: path is \$path\
 )
 EOF
 
-FROM bashrc AS ending
+
+# FROM bashrc AS ending
 USER root
 ARG SK
 ARG SKP=$USERHOME/.ssh
@@ -210,137 +193,54 @@ RUN chmod 400 $FSK\
 USER $THISUSER
 RUN git config --global ssh.identity $SKP/$SK
 
+COPY assets.docker/git-prompt.sh $USERHOME/git-prompt.sh
+RUN cat >>~/.bashrc <<EOF
+. ~/git-prompt.sh
+function set_ps1 {
+PS1_ON="\[\033[0m\]on"
+PS1_COLON="\[\033[0m\]:"
+PS1_HOST="\[\033[0;34m\]\h"
+PS1_BRACKET_o="\[\033[0;35m\]["
+PS1_BRACKET_c="\[\033[0;35m\]]"
+PS1_at="\[\033[0m\]@\[\033[0m\]"
+
+PS1_DATE="\[\033[0;31m\]\\\`date +%Y-%m-%d\ %H:%M:%S\\\`"
+PS1_GITSSH="\[\033[0;36m\]\\\`basename \\\$(git config --get-regexp "ssh.identity"|tail -1|awk '{ print \\\$2 }')\\\`"
+PS1_GITSSH="\[\033[0;36m\]\\\`basename \\\$(git config --get-regexp "ssh.identity"|tail -1|awk '{ print \\\$2 }') 2>/dev/null\\\`"
+PS1_REPO="\[\033[0;36m\]\\\`git remote -v|head -1 2>/dev/null|awk '{print \\\$2}'\\\`"
+PS1_GITUSER="\[\033[0;36m\]\\\`git config --get-regexp \"user.email\"|tail -1|sed \"s/user\.email//\"\\\`"
+PS1_BRANCH="\[\033[0;36m\](\\\$(git rev-parse --abbrev-ref HEAD 2>/dev/null))"
+PS1_OS="\[\033[3;34m\]\$(grep -iE ^ID= /etc/os-release 2>/dev/null|awk -F= '{print \$2}'|awk '{print \$1}')"
+PS1_USER="\[\033[3;34m\]\u\[\033[0m\]"
+PS1_HOST="\[\033[3;34m\]\h\[\033[0m\]"
+PS1_PWD="\[\033[0;35m\]\w\[\033[0m\]"
+
+PS1_GITLINE="\${PS1_GITSSH}\${PS1_COLON} \${PS1_REPO}"
+PS1_USERATHOST="\${PS1_USER}\${PS1_at}\${PS1_HOST} \${PS1_BRANCH}"
+PS1_RM="\[\033[0;31m\]\${__RM__}"
+ps1=
+ps1+="\n\${PS1_USERATHOST}"
+ps1+="\n\${PS1_GITLINE}"
+ps1+="\n\${PS1_DATE} \[\033[0;32m\]\\\${VIRTUAL_ENV_PROMPT}\${PS1_BRACKET_o}\${PS1_PWD}\${PS1_BRACKET_c}"
+ps1+="\n\${PS1_RM}\[\033[1;32m\]\$ \[\033[0m\]"
+echo \$ps1
+}
+export PS1=\$(set_ps1)
+EOF
+
+
+RUN sudo usermod -a -G docker $(whoami)
+# RUN sudo apt-get install -y\
+#   netcat-traditional
+RUN sudo apt-get clean
+RUN sudo rm -rf /var/lib/apt/lists/*
 ARG BUILD_DATE
 LABEL build-date=${BUILD_DATE}
 RUN echo 'echo -e "\\nuser image ('${BUILD_DATE}')"\n\
 '>>~/.bashrc
 
-RUN sudo usermod -a -G docker $(whoami)
 
 
 # VOLUME ["/var/run/docker.sock"]
 # VOLUME ["/var/lib/docker"]
 
-# Sat Aug 23 19:24:42 CDT 2025
-# Command: buildcontainer -t k8s user
-
-# Sun Sep 21 11:57:49 CDT 2025
-# Command: 
-# cat $SECURE_ASSETS/../docker.master/Dockerfile.user.k8s >$SECURE_ASSETS/../Dockerfile.user\
-#   && image -t k8s user
-
-# Sat Oct 11 10:16:15 CDT 2025
-# Command: 
-# cat $SECURE_ASSETS/../docker.master/Dockerfile.user.k8s >$SECURE_ASSETS/../Dockerfile.user\
-#   && image -t k8s user
-
-# Mon Oct 13 13:54:36 CDT 2025
-# Command: 
-# cat $SECURE_ASSETS/../docker.master/Dockerfile.user.k8s >$SECURE_ASSETS/../Dockerfile.user\
-#   && image -t k8s user
-
-# Wed Oct 15 06:32:39 CDT 2025
-# Command: 
-# cat $SECURE_ASSETS/../docker.master/Dockerfile.user.k8s >$SECURE_ASSETS/../Dockerfile.user\
-#   && image -t k8s user
-
-# Wed Oct 15 10:10:26 CDT 2025
-# Command: 
-# cat $SECURE_ASSETS/../docker.master/Dockerfile.user.k8s >$SECURE_ASSETS/../Dockerfile.user\
-#   && image -t k8s user
-
-# Wed Oct 15 10:44:01 CDT 2025
-# Command: 
-# cat $SECURE_ASSETS/../docker.master/Dockerfile.user.k8s >$SECURE_ASSETS/../Dockerfile.user\
-#   && image -t k8s user
-
-# Wed Oct 15 12:10:35 CDT 2025
-# Command: 
-# cat $SECURE_ASSETS/../docker.master/Dockerfile.user.k8s >$SECURE_ASSETS/../Dockerfile.user\
-#   && image -t k8s user
-
-# Wed Oct 15 13:29:47 CDT 2025
-# Command: 
-# cat $SECURE_ASSETS/../docker.master/Dockerfile.user.k8s >$SECURE_ASSETS/../Dockerfile.user\
-#   && image -t k8s user
-
-# Wed Oct 15 14:03:11 CDT 2025
-# Command: 
-# cat $SECURE_ASSETS/../docker.master/Dockerfile.user.k8s >$SECURE_ASSETS/../Dockerfile.user\
-#   && image -t k8s user
-
-# Wed Oct 15 14:03:57 CDT 2025
-# Command: 
-# cat $SECURE_ASSETS/../docker.master/Dockerfile.user.k8s >$SECURE_ASSETS/../Dockerfile.user\
-#   && image -t k8s user
-
-# Wed Oct 15 15:27:03 CDT 2025
-# Command: 
-# cat $SECURE_ASSETS/../docker.master/Dockerfile.user.k8s >$SECURE_ASSETS/../Dockerfile.user\
-#   && image -t k8s user
-
-# Wed Oct 15 15:29:22 CDT 2025
-# Command: 
-# cat $SECURE_ASSETS/../docker.master/Dockerfile.user.k8s >$SECURE_ASSETS/../Dockerfile.user\
-#   && image -t k8s user
-
-# Wed Oct 15 16:42:32 CDT 2025
-# Command: 
-# cat $SECURE_ASSETS/../docker.master/Dockerfile.user.k8s >$SECURE_ASSETS/../Dockerfile.user\
-#   && image --no-cache -t k8s user
-
-# Wed Oct 15 16:44:07 CDT 2025
-# Command: 
-# cat $SECURE_ASSETS/../docker.master/Dockerfile.user.k8s >$SECURE_ASSETS/../Dockerfile.user\
-#   && image -t k8s user
-
-# Thu Oct 16 09:26:11 CDT 2025
-# Command: 
-# cat $SECURE_ASSETS/../docker.master/Dockerfile.user.k8s >$SECURE_ASSETS/../Dockerfile.user\
-#   && image -t k8s user
-
-# Thu Oct 16 17:49:03 CDT 2025
-# Command: 
-# cat $SECURE_ASSETS/../docker.master/Dockerfile.user.k8s >$SECURE_ASSETS/../Dockerfile.user\
-#   && image -t k8s user
-
-# Thu Oct 16 19:23:50 CDT 2025
-# Command: 
-# cat $SECURE_ASSETS/../docker.master/Dockerfile.user.k8s >$SECURE_ASSETS/../Dockerfile.user\
-#   && image -t k8s user
-
-# Thu Oct 16 19:28:03 CDT 2025
-# Command: 
-# cat $SECURE_ASSETS/../docker.master/Dockerfile.user.k8s >$SECURE_ASSETS/../Dockerfile.user\
-#   && image -t k8s user
-
-# Tue Oct 21 10:14:38 CDT 2025
-# Command: 
-# cat $SECURE_ASSETS/../docker.master/Dockerfile.user.k8s >$SECURE_ASSETS/../Dockerfile.user\
-#   && image -t k8s user
-
-# Tue Nov 11 09:38:56 CST 2025
-# Command: 
-# cat $SECURE_ASSETS/../docker.master/Dockerfile.user.k8s >$SECURE_ASSETS/../Dockerfile.user\
-#   && image -t k8s user
-
-# Sun Nov 16 16:36:27 CST 2025
-# Command: 
-# cat $SECURE_ASSETS/../docker.master/Dockerfile.user.k8s >$SECURE_ASSETS/../Dockerfile.user\
-#   && image -t k8s user
-
-# Mon Nov 17 08:09:22 CST 2025
-# Command: 
-# cat $SECURE_ASSETS/../docker.master/Dockerfile.user.k8s >$SECURE_ASSETS/../Dockerfile.user\
-#   && image -t k8s user
-
-# Thu Nov 20 17:12:56 CST 2025
-# Command: 
-# cat $SECURE_ASSETS/../docker.master/Dockerfile.user.k8s >$SECURE_ASSETS/../Dockerfile.user\
-#   && image -t k8s user
-
-
-# Wed Nov 26 11:08:01 CST 2025
-# Command: 
-# cat $SECURE_ASSETS/../docker.master/Dockerfile.user.k8s >$SECURE_ASSETS/../Dockerfile.user\
-#   && image -t k8s user

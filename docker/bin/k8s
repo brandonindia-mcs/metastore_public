@@ -2,9 +2,8 @@
 
 if [ -z "$SECURE_ASSETS" ];then echo SECURE_ASSETS not set && exit 1;fi
 cat $SECURE_ASSETS/../docker.master/Dockerfile.user.k8s >$SECURE_ASSETS/../Dockerfile.user\
-  && image $1 -t k8s user\
-  && echo 'ENTRYPOINT ["/entrypoint.sh"]' >>$SECURE_ASSETS/../Dockerfile.user && image $1 -t k8s-vol user
+  && image $1 -t k8s user || exit 1
+echo 'ENTRYPOINT ["/entrypoint.sh"]' >>$SECURE_ASSETS/../Dockerfile.user\
+  && image $1 -t k8s-vol user || exit 1
 
-# cat $SECURE_ASSETS/../docker.master/Dockerfile.user.base >$SECURE_ASSETS/../Dockerfile.user  && image -t base user\
-#   && cat $SECURE_ASSETS/../docker.master/Dockerfile.user.k8s >$SECURE_ASSETS/../Dockerfile.user  && image -t k8s user
-
+echo script \`k8s\` completed at $(date)
