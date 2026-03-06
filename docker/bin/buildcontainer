@@ -170,7 +170,7 @@ log $LINENO building from $DOCKERFILE\\ngetting parameters: $APP $PARMFILE
 
 CMD="\\n
 DOCKER_BUILDKIT=1 podman build --rm $NOCACHE\\n
-  --build-arg BUILD_DATE=$(date +%Y%m%d)
+  --build-arg BUILD_DATE=$(date +%Y%m%d)\\n
   --build-arg THISUSER=$CUSER\\n
   --build-arg HOMEDIR=$HOMEDIR\\n
   --build-arg LOCALHOMESAFE=$LOCALHOMESAFE\\n
@@ -182,7 +182,15 @@ DOCKER_BUILDKIT=1 podman build --rm $NOCACHE\\n
   $TAGS\\n
   -f $DOCKERFILE . || return 1"
 
-log $LINENO "$CMD"|sed "s/\\\\n//g" && if ! $__DEBUG__;then eval $(echo "$CMD"|sed "s/\\\\n//g") && log_s $APP && list+=($APP);fi
+### THE ACTUAL EXECUTION BLOCK
+log $LINENO "$CMD"|sed "s/\\\\n//g" &&\
+  if ! $__DEBUG__;then
+    eval $(echo "$CMD"|sed "s/\\\\n//g")\
+      && echo '****************************'\
+      && log_s $LINENO "Success container \"$APP\" built with tags: $TAGS"\
+      && echo '****************************'\
+      && list+=($APP)
+  fi
 # DATE TAG LATEST
 podman tag $APP $APP:$(date +%Y%m%d)
 done # SEE TOP @ LINE 76
@@ -226,8 +234,8 @@ for img in ${list[@]};do
   # APPEND RUN COMMAND
   # echo -e \\n# $(date):\\npushd \$SECURE_ASSETS/..\\n# Command: ${RUNCOMMAND}${__CMD__}\\n#\\t -f ./docker.master/build/${DOCKERFILE}.${taglist} .\\npopd\\n# $LOGMSG\
   #   >>$DOCKERTEMPFILE
-  log $LINENO $DOCKERTEMPFILE\
-    && cp -p $DOCKERTEMPFILE $DOCKERBUILD\
+  log $LINENO $DOCKERTEMPFILE
+  cp -p $DOCKERTEMPFILE $DOCKERBUILD\
     && log $LINENO $LOGMSG\
     \
     && cp -p $DOCKERTEMPFILE $BAKDIR/

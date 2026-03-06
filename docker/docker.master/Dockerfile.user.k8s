@@ -73,22 +73,22 @@ RUN sudo apt-get update && sudo apt-get install -y tree\
   && sudo wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64\
   && sudo chmod a+x /usr/local/bin/yq
 
-# FROM devcontainer AS azcli
-RUN curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash\
-  && sudo apt-get update\
-  && sudo apt-get install -y apt-transport-https ca-certificates curl gnupg lsb-release
+# # FROM devcontainer AS azcli
+# RUN curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash\
+#   && sudo apt-get update\
+#   && sudo apt-get install -y apt-transport-https ca-certificates curl gnupg lsb-release
 
-RUN sudo mkdir -p /etc/apt/keyrings\
-  && curl -sLS https://packages.microsoft.com/keys/microsoft.asc |\
-     gpg --dearmor | sudo tee /etc/apt/keyrings/microsoft.gpg > /dev/null\
-  && sudo chmod go+r /etc/apt/keyrings/microsoft.gpg
-RUN AZ_DIST=$(lsb_release -cs)\
-  && echo "Types: deb\n\
-URIs: https://packages.microsoft.com/repos/azure-cli/\n\
-Suites: $AZ_DIST\n\
-Components: main\n\
-Architectures: $(dpkg --print-architecture)\n\
-Signed-by: /etc/apt/keyrings/microsoft.gpg" | sudo tee /etc/apt/sources.list.d/azure-cli.sources
+# RUN sudo mkdir -p /etc/apt/keyrings\
+#   && curl -sLS https://packages.microsoft.com/keys/microsoft.asc |\
+#      gpg --dearmor | sudo tee /etc/apt/keyrings/microsoft.gpg > /dev/null\
+#   && sudo chmod go+r /etc/apt/keyrings/microsoft.gpg
+# RUN AZ_DIST=$(lsb_release -cs)\
+#   && echo "Types: deb\n\
+# URIs: https://packages.microsoft.com/repos/azure-cli/\n\
+# Suites: $AZ_DIST\n\
+# Components: main\n\
+# Architectures: $(dpkg --print-architecture)\n\
+# Signed-by: /etc/apt/keyrings/microsoft.gpg" | sudo tee /etc/apt/sources.list.d/azure-cli.sources
 
 
 # RUN mkdir -p $USERHOME/.azure\

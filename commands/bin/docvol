@@ -9,10 +9,10 @@ function usage {
 ### -remove|-delete|-r|-d)
 function do_remove_vol {
   for v in "${VOL[@]}";do
-    if [ $FORCE ];then docker volume rm ${v} && continue || break;fi
+    if [ $FORCE ];then podman volume rm ${v} && continue || break;fi
     get_size ${v}
     if $(yesno "remove volume $(blue ${v})");then
-      if docker volume rm ${v};then log_s $LINENO removed volume ${v};fi
+      if podman volume rm ${v};then log_s $LINENO removed volume ${v};fi
     else echo -en \\t\\t && log_e $LINENO skipped ${v} && echo;fi
   done
 }
@@ -20,51 +20,54 @@ function do_remove_vol {
 ### -create|-c)
 function do_create_vol {
   for v in "${VOL[@]}";do
-    local s=$(docker volume create ${v})\
-      && (docker run --rm -v $s:/data alpine sh -c "chown -R 1000:1000 /data")\
+    if ! podman volume ls|grep ${v};then
+    local s=$(podman volume create ${v})\
+      && (podman run --rm -v $s:/data alpine sh -c "chown -R 1000:1000 /data")\
       && success $LINENO "volume ${s} exists"\
       && sleep 2 && ${0} -o ${s}
+    fi
   done
   return 0
-  # local s=$(docker volume create ${VOL}) && success $LINENO "volume ${s} exists"\
+  # local s=$(podman volume create ${VOL}) && success $LINENO "volume ${s} exists"\
   # && sleep 2 && ${0} -o ${s}\
   # && return 0
 }
 
 ### -list|-l)
 function do_list {
-    if [ -z ${VOL} ];then docker volume ls|grep -v -E --color '[a-z0-9]{64}' && return 0;fi
-    if ! docker volume ls|grep -v -E '[a-z0-9]{64}'|awk '{print $2}'|grep -E -w --color ^${VOL}$ 2>/dev/null; then
-    # docker volume ls|sort && echo -e "\n${VOL} not found"; fi
+    if [ -z ${VOL} ];then podman volume ls|grep -v -E --color '[a-z0-9]{64}' && return 0;fi
+    if ! podman volume ls|grep -v -E '[a-z0-9]{64}'|awk '{print $2}'|grep -E -w --color ^${VOL}$ 2>/dev/null; then
+    # podman volume ls|sort && echo -e "\n${VOL} not found"; fi
       # log_e $LINENO ${VOL} not found && 
       return 1
-      # docker volume ls|grep -v -E '[a-z0-9]{64}'|sort && echo
+      # podman volume ls|grep -v -E '[a-z0-9]{64}'|sort && echo
     fi
 }
 
 ### -inspect|-i)
 function run_inspect_container {
-  if [ ${VOL} ]; then local ARRAY=($(docker volume inspect ${VOL}|grep -i mountpoint|sed 's/"//g; s/,//g;')); fi
-  local VOLPATH=${ARRAY[1]} && if [ ! ${VOLPATH} ];then VOLPATH=/var/lib/docker/volumes; fi
+  if [ ${VOL} ]; then local ARRAY=($(podman volume inspect ${VOL}|grep -i mountpoint|sed 's/"//g; s/,//g;')); fi
+  local VOLPATH=${ARRAY[1]} && if [ ! ${VOLPATH} ];then VOLPATH=/var/lib/podman/volumes; fi
   echo -e running Debian container, find volumes:"\t"cd ${VOLPATH}
-  docker run --privileged --rm --name debian -it --pid=host debian nsenter -t 1 -m -u -n -i sh
+  podman run --privileged --rm --name debian -it --pid=host debian nsenter -t 1 -m -u -n -i sh
 }
 
 ### -size|-s)
 function get_size {
-  local s=$(docker volume inspect $1 2>/dev/null)
+  local s=$(podman volume inspect $1 2>/dev/null)
   local ARRAY=($(echo -e "${s}"|grep -i mountpoint|sed 's/"//g; s/,//g;';))
   if [ ${#ARRAY[@]} -gt 0 ]; then
     echo -e "${s}\ngetting size of ${ARRAY[0]}..."
-    docker run --rm --privileged --pid=host debian nsenter -t 1 -m -u -n -i /usr/bin/du -d 0 -h ${ARRAY[1]}
+    podman run --rm --privileged --pid=host debian nsenter -t 1 -m -u -n -i /usr/bin/du -d 0 -h ${ARRAY[1]}
   else usage volume not found: $1; fi
   # exit 0
 }
 
 ### -owner|-o)
+    #sh -c \"/bin/chown $OWNER:$OWNER /var/lib/docker/volumes/$VOL/_data\""
 function set_owner {
-  CMD="docker run --privileged --rm -it --pid=host debian nsenter -t 1 -m -u -n -i\
-    sh -c \"/bin/chown $OWNER:$OWNER /var/lib/docker/volumes/$VOL/_data\""
+  CMD="podman run --privileged --rm -it --pid=host debian nsenter -t 1 -m -u -n -i\
+    $(which sh) -c \"$(which chown) $OWNER /var/lib/containers/storage/volumes/$VOL/_data\""
   # echo $CMD
   eval $CMD
 
@@ -72,7 +75,7 @@ function set_owner {
 
 ### -network|-n)
 function do_network {
-  docker network ls
+  podman network ls
 }
 
 ### -backup|-b)
@@ -81,17 +84,17 @@ function do_backup {
   VOL=$1 && shift
   STMP=$(date +%Y-%m-%d-%H-%M)
   DATE=$(date +%Y-%m-%d)
-  BAKPATH=~/devnet/docker_volume_backup
+  BAKPATH=~/devnet/podman_volume_backup
 
 ### SKELETON COMMAND ###
-# docker run --rm \
+# podman run --rm \
 #       -v "$VOLUME_NAME":/backup-volume \
 #       -v "$(pwd)":/backup \
 #       busybox \
 #       tar -zcvf /backup/my-backup.tar.gz /backup-volume
 
- echo -e "Running backup for docker volume: $VOL "
- docker run --rm \
+ echo -e "Running backup for podman volume: $VOL "
+ podman run --rm \
       -v $VOL:/$VOL.$STMP.backup \
       -v $BAKPATH:/backup \
       busybox \
@@ -108,7 +111,7 @@ function collect_local_assets_all {
   assetmap["compose-spec.json"]="$(/bin/ls -d ~)/compose-spec.json"
 
   tar cf /tmp/dot_ssh.tar -C ~ .ssh/
-  tar rf /tmp/dot_ssh.tar -C ~/metastore docker/build-parameters
+  tar rf /tmp/dot_ssh.tar -C ~/metastore podman/build-parameters
   gzip -f /tmp/dot_ssh.tar
   assetmap["dot_ssh.tar.gz"]="/tmp/dot_ssh.tar.gz"
 }
@@ -122,13 +125,13 @@ function collect_local_assets {
   local mnt=$vm
   docvol -c $mnt
 
-  docker run --name $vm --rm -itd -v $mnt:/mnt/$mnt --workdir /mnt ubuntu:20.04 && sleep 5
-  for k in ${!assetmap[@]};do echo copying docker ${assetmap[$k]} to $vm\
+  podman run --name $vm --rm -itd -v $mnt:/mnt/$mnt --workdir /mnt ubuntu:20.04 && sleep 5
+  for k in ${!assetmap[@]};do echo copying podman ${assetmap[$k]} to $vm\
     && /bin/ls -Al ${assetmap[$k]}\
-    && docker cp ${assetmap[$k]} $vm:/mnt/$mnt/$k
+    && podman cp ${assetmap[$k]} $vm:/mnt/$mnt/$k
   
   done
-  docker stop $vm
+  podman stop $vm
 }
 function help {
   MSG="
@@ -157,7 +160,7 @@ case $i in
 -network|-n)
   NETWORK=$@ && NET=1
   shift
-  if [ ! $# -eq 0 ];  then docker network create $1 ; shift; fi
+  if [ ! $# -eq 0 ];  then podman network create $1 ; shift; fi
   if [ ! $# -eq 0 ];  then usage no args for network; fi
   if [ ${NET} ];      then do_network; fi
   exit 0
@@ -214,7 +217,7 @@ case $i in
 -ip)
   shift
   if [ $# -eq 0 ];  then usage no container name && exit 1; fi
-  docker inspect -f '{{range.NetworkSettings.Networks}}{{.IPAddress}}{{end}}' $1
+  podman inspect -f '{{range.NetworkSettings.Networks}}{{.IPAddress}}{{end}}' $1
   exit 0
   ;;
 -help|-h)
@@ -224,9 +227,9 @@ case $i in
 esac
 done
 
-devol $1
+# devol $1
 )
 # log $LINENO printing user volumes:
-# docker volume ls|grep -v -E '[a-z0-9]{64}'|sort && echo
+# podman volume ls|grep -v -E '[a-z0-9]{64}'|sort && echo
 # help
 
