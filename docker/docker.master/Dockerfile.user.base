@@ -163,6 +163,10 @@ echo \$ps1
 export PS1="\$(set_ps1) "
 EOF
 
+RUN cat >>$USERHOME/.bashrc <<EOF
+alias docker="sudo docker"
+EOF
+
 RUN cat >~/.vimrc <<EOF
 set tabstop=8 softtabstop=0 expandtab shiftwidth=4 smarttab autoindent
 set number
