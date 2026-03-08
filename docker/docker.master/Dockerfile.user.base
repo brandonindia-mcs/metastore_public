@@ -117,6 +117,7 @@ git config --global user.email \$gituser
 git config --global ssh.identity \$gitkey
 git config --global core.autocrlf input
 git config --global core.longpaths true
+function printenv {   command printenv "\$@" | sed -E 's/^([^=]+)=/\x1b[0;33m\1\x1b[0m=/'; }
 EOF
 
 #######################################################
@@ -125,12 +126,25 @@ EOF
 
 ################# BOTTOM ##################
 
+# FROM base AS end
+COPY assets.docker/git-prompt.sh $USERHOME/git-prompt.sh
 RUN cat >>$USERHOME/.bashrc <<EOF
+alias docker="sudo docker"
 . $USERHOME/appdev/bashrc-hook.sh
 EOF
-# FROM base AS end
 
-COPY assets.docker/git-prompt.sh $USERHOME/git-prompt.sh
+# vimrc colo values: slate | pablo | murphy
+RUN cat >~/.vimrc <<EOF
+set tabstop=8 softtabstop=0 expandtab shiftwidth=4 smarttab autoindent
+set number
+set nocompatible
+syntax on
+colo pablo
+set cursorline
+set hls
+hi CursorLine   cterm=NONE ctermbg=NONE ctermfg=NONE
+hi CursorLineNr   cterm=NONE ctermbg=36 ctermfg=NONE
+EOF
 RUN cat >>$USERHOME/.bashrc <<EOF
 . ~/git-prompt.sh
 function set_ps1 {
@@ -152,31 +166,16 @@ PS1_PWD="\[\033[1;33m\]\w\[\033[0m\]"
 
 PS1_GITLINE="\${PS1_GITSSH}\${PS1_COLON} \${PS1_REPO}"
 PS1_USERATHOST="\${PS1_USER}\${PS1_at}\${PS1_HOST} \${PS1_BRANCH}"
+PS1_ENV="\[\033[0m\]\\\`echo \\\$sdenv\\\`"
 PS1_RM="\[\033[0;31m\]\${__RM__}"
 ps1=
 ps1+="\n\${PS1_USERATHOST}"
 ps1+="\n\${PS1_GITLINE}"
-ps1+="\n\${PS1_DATE} \[\033[0;32m\]\\\${VIRTUAL_ENV_PROMPT}\${PS1_BRACKET_o}\${PS1_PWD}\${PS1_BRACKET_c}"
+ps1+="\n\${PS1_DATE} \${PS1_ENV}\[\033[0;32m\]\\\${VIRTUAL_ENV_PROMPT}\${PS1_BRACKET_o}\${PS1_PWD}\${PS1_BRACKET_c}"
 ps1+="\n\${PS1_RM} \[\033[1;33m\]\W/\[\033[0;32m\]$\[\033[0m\]"
 echo \$ps1
 }
 export PS1="\$(set_ps1) "
-EOF
-
-RUN cat >>$USERHOME/.bashrc <<EOF
-alias docker="sudo docker"
-EOF
-
-RUN cat >~/.vimrc <<EOF
-set tabstop=8 softtabstop=0 expandtab shiftwidth=4 smarttab autoindent
-set number
-set nocompatible
-syntax on
-colo pablo "slate pablo murphy
-set cursorline
-set hls
-hi CursorLine   cterm=NONE ctermbg=NONE ctermfg=NONE
-hi CursorLineNr   cterm=NONE ctermbg=36 ctermfg=NONE
 EOF
 
 ############ CONNECT ENTRYPOINT W/ VOLUME #############
