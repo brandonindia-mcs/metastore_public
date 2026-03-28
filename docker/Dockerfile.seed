@@ -107,7 +107,7 @@ function log_w       { log_warn $*; }\n\
 function warn        { log_warn $*; }\n\
 function log_notify  { blue "`basename "$0" 2>/dev/null`($1):" && echo "${@:2}"; }\n\
 function notify      { blue "`basename "$0" 2>/dev/null`($1):" && echo "${@:2}"; }\n\
-function countdown   { max=$1 min=0 && for i in `seq $min $(expr $max - 1)`;do echo -n "`expr $max - $i`.. " && sleep 1;done; }\n\
+# function countdown   { max=$1 min=0 && for i in `seq $min $(expr $max - 1)`;do echo -n "`expr $max - $i`.. " && sleep 1;done; }\n\
 # function log_usage { yellow "`basename "$0"`($1):" && echo "${@:2}"; }# Recursion to handle each file or directory encountered\n\
 function push { pushd "$1" >/dev/null ; }\n\
 function pop { popd  >/dev/null ; }\n\
@@ -121,6 +121,28 @@ function yesno { yesno-Y "$*"; }\n\
 function yesno-Y { read -p "$1 yes (default) or no: " && if [[ ${REPLY,,} = n ]] || [[ ${REPLY,,} = no ]]; then return 9; fi; return 0; }\n\
 function yesno-N { read -p "$1 yes or no (default): " && if [[ ${REPLY,,} = y ]] || [[ ${REPLY,,} = yes ]]; then return 0; fi; return 9; }\n\
 function toupper { echo ${*^^}; }\n\
+function countdown {\n\
+  local max=${1:-10}\n\
+  local min=0\n\
+  local msg=${2:-}\n\
+  # validate integers\n\
+  if ! [[ "$max" =~ ^[0-9]+$ ]] || ! [[ "$min" =~ ^[0-9]+$ ]]; then\n\
+    printf "Usage: countdown MAX [MIN] [MESSAGE]\n"\n\
+    return 2\n\
+  fi\n\
+  if (( min >= max )); then\n\
+    printf "Error: MIN (%d) must be less than MAX (%d)\n" "$min" "$max"\n\
+    return 2\n\
+  fi\n\
+  for ((i = max; i > min; i--)); do\n\
+    if [ -n "$msg" ]; then\n\
+      printf "\r   %s in %d... " "$msg" "$i"\n\
+    else\n\
+      printf "\r   in %d... " "$i"\n\
+    fi\n\
+    sleep 1\n\
+  done\n\
+}\n\
 '>>/etc/bash.bashrc
 
 RUN cat >>/etc/bash.bashrc <<EOF
