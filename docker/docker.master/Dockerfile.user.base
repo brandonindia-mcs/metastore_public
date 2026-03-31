@@ -250,6 +250,7 @@ RUN sudo chmod u+x $USERHOME/bin/audit_env
 # FROM base AS end
 COPY assets.docker/git-prompt.sh $USERHOME/git-prompt.sh
 RUN cat >>$USERHOME/.bashrc <<EOF
+function awswho { aws sts get-caller-identity; }
 alias docker="sudo docker"
 . $USERHOME/appdev/bashrc-hook.sh
 EOF
@@ -328,7 +329,8 @@ RUN sudo apt-get clean
 RUN sudo rm -rf /var/lib/apt/lists/*
 ARG BUILD_DATE
 LABEL build-date=${BUILD_DATE}
-RUN echo 'echo -e "user:base ('${BUILD_DATE}')"\n\
+RUN echo 'function rand { local n=${1:-8}; base64 </dev/urandom | tr -dc "A-Za-z0-9" | head -c $n; }\n\
+echo -e "user:base ('${BUILD_DATE}')"\n\
 '>>$USERHOME/.bashrc
 
 RUN sudo apt-get update -qq\
