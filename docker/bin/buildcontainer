@@ -45,9 +45,19 @@ function print_critical_values { if $__DEBUG__;then log DEBUG Critical Values: $
 KEY=nokey-id_rsa
 for i in "$@"; do
 case $i in
+-v)
+IMAGE_VERSION="-$2" && shift && shift
+;;
+--CUSER=*)
+CUSER=("${i#*=}") && shift
+;;
+--GITUSER=*)
+GITUSER=("${i#*=}") && shift
+;;
 -t)
-# shift && CUSTOM_TAG+=("$1") && shift
-shift && CUSTOM_TAG+=("$(echo $1|tr @ -|tr . -)") && shift
+# shift && CUSTOM_TAG+=("$(echo $1|tr @ -|tr . -)") && shift
+# CUSTOM_TAG+=("$2") && CUSTOM_TAG+=("$(echo $2|tr @ -|tr . -)") && shift && shift
+CUSTOM_TAG+=("$2") && shift && shift
 ;;
 -nocache|--no-cache)
 shift && NOCACHE="--no-cache" && log $LINENO $NOCACHE
@@ -63,6 +73,20 @@ KEY=("${i#*=}") && shift
 ;;
 -debug)
 __DEBUG__=true && shift
+;;
+-h) # image -t base-d user
+echo -e "\nsample run command(s):
+
+cat \$SECURE_ASSETS/../docker.master/Dockerfile.seed-24.04 >\$SECURE_ASSETS/../Dockerfile.seed\
+\t&& image --CUSER=developer --GITUSER=brandonindia-mcs -v 24.04 -t 24.04
+
+cat \$SECURE_ASSETS/../docker.master/Dockerfile.user.base-d >\$SECURE_ASSETS/../Dockerfile.user\
+\t&& image --CUSER=developer --GITUSER=brandonindia-mcs -v 24.04 -t base-d -t base-d-24.04 user
+
+cat \$SECURE_ASSETS/../docker.master/Dockerfile.user.base >\$SECURE_ASSETS/../Dockerfile.user\
+\nimage --CUSER=developer --GITUSER=brandonindia-mcs -v 24.04 -t 24.04 -t base-24.04 user
+"
+exit
 ;;
 -*)
 abort_hard $(basename $0) illegal argument: $i
@@ -121,8 +145,9 @@ app|application|entry) # INTENDED TO BUILD ENTRYPOINT CONTAINERS
 ;;
 *)
   log $LINENO found nothing special for APP: $APP
-  CUSER=developer && warn $LINENO setting CUSER: $CUSER
-  CLOGIN=$CUSER@$DOMAIN
+  if [ -z "$CUSER" ];then CUSER=developer && warn $LINENO setting CUSER: $CUSER;fi
+  if [ -z "$GITUSER" ];then GITUSER=$GITUSER && warn $LINENO setting GITUSER: $GITUSER;fi
+  CLOGIN=$GITUSER@$DOMAIN
   if [ -n "$KEY" ];then k=$KEY;else k=$CUSER;fi
   log $LINENO calling: "\`get_keyname $k\`"
   KEYNAME=$(get_keyname $k)
@@ -152,7 +177,10 @@ if [ ${#CUSTOM_TAG[@]} -eq 0 ];then CUSTOM_TAG+="latest";fi
 # DO CUSTOM TAGGING & DATE TAGGING
 # USE THE FIRST TAG AS "PRIMARY" LABEL
 taglist=()
-for t in ${CUSTOM_TAG[@]};do taglist+=$t && log $LINENO APP $APP, t $t && TAGS+=" -t $APP:$t -t $APP:$t-$(date +%Y%m%d)" && if [ -z "$LABEL" ];then LABEL="-$t";fi;done
+for t in ${CUSTOM_TAG[@]};do
+  taglist+=$t && log $LINENO APP $APP, t $t
+  TAGS+=" -t $APP:$t" && if [ -z "$LABEL" ];then LABEL="-$t";fi;
+done
 # echo TAGS: $TAGS
 # if [ ${#taglist[@]} -eq 0 ];then TAGS="-t latest";fi
 # echo TAGS: $TAGS
@@ -161,9 +189,14 @@ for t in ${CUSTOM_TAG[@]};do taglist+=$t && log $LINENO APP $APP, t $t && TAGS+=
 # for t in ${taglist[@]};do log TAG IS $t;done
 # for t in ${CUSTOM_TAG[@]};do log $t;done
 
-for t in ${CUSTOM_TAG[@]};do log $LINENO APP $APP, t $t && TAGS+=" -t $DOCKERHUB/$APP:$t -t $DOCKERHUB/$APP:$t-$(date +%Y%m%d)";done
+for t in ${CUSTOM_TAG[@]};do
+  log $LINENO APP $APP, t $t
+  # TAGS+=" -t $DOCKERHUB/$APP:$t -t $DOCKERHUB/$APP:$t-$(date +%Y%m%d)";
+  TAGS+=" -t $DOCKERHUB/$APP:$t";
+  if [ -n "$IMAGE_VERSION" ];then TAGS+=" -t ${APP}${IMAGE_VERSION} -t ${DOCKERHUB}/${APP}${IMAGE_VERSION}"; fi
+done
 if [ -n "$TAGS" ];then TAGS+=" -t $DOCKERHUB/$APP:latest";fi
-
+# TAGS+=" -t ${APP}${IMAGE_VERSION}"
 print_critical_values leaving do_build
 log $LINENO building from $DOCKERFILE\\ngetting parameters: $APP $PARMFILE
 . ~/devnet/metastore/shell/get_runargs.sh $APP $PARMFILE
@@ -175,7 +208,7 @@ DOCKER_BUILDKIT=1 podman build --rm $NOCACHE\\n
   --build-arg HOMEDIR=$HOMEDIR\\n
   --build-arg LOCALHOMESAFE=$LOCALHOMESAFE\\n
   --build-arg gitlogin=$CLOGIN\\n
-  --build-arg gituser=$CUSER\\n
+  --build-arg gituser=$GITUSER\\n
   --build-arg SK=$KEYNAME\\n$BUILDARGS
   $ETC\\n
   -t $APP\\n
@@ -205,7 +238,7 @@ DOCKER_FILE_HOME=~/devnet/metastore/docker
 HOMEDIR=/home
 LOCALHOMESAFE=\\/home\\/${CUSER}
 APPS_LIST=$*
-if [ $# -eq 0 ]; then APPS_LIST=$seedcontainers;fi
+if [ $# -eq 0 ]; then APPS_LIST="$seedcontainers";fi
 list=()
 if [ -d ${DOCKER_FILE_HOME} ];then pushd ${DOCKER_FILE_HOME} >/dev/null # && log $LINENO inside ${DOCKER_FILE_HOME}
 print_critical_values calling do build
@@ -239,7 +272,7 @@ for img in ${list[@]};do
     && log $LINENO $LOGMSG\
     \
     && cp -p $DOCKERTEMPFILE $BAKDIR/
-
+# ls -l $DOCKERMASTER $DOCKERTEMPFILE $DOCKERBUILD
 done
 
 )
