@@ -1,16 +1,78 @@
 #!/bin/bash
 
+##################
+#
+# TRHEE PARTS BELOW
+##### SEED    #####
+##### BASE -D #####
+##### BASE    #####
+#
+##################
+(
+
 if [ -z "$SECURE_ASSETS" ];then echo SECURE_ASSETS not set && exit 1;fi
-if [[ "$1" = "-d" ]];then # BUILD base-d DOCKERFILE
-cat $SECURE_ASSETS/../docker.master/Dockerfile.user.base-d >$SECURE_ASSETS/../Dockerfile.user\
-  && image -t base-d user || exit 1
+
+
+##### SEED    #####
+if [[ "$1" = "-all" ]];then shift # BUILD seed, base-d DOCKERFILE
+(
+VERSION=${1:-24.04}
+
+### TWO STEPS
+# 1) BUILD SEED
+image -v $VERSION -t $VERSION -nocache
+# 2) RUN THIS W/ -d
+d=$(date)
+$0 -d $VERSION || exit 1
+echo -e "\t $d: \`image -v $VERSION -t $VERSION -nocache\` (base -all) complete"
+)
+
+
+
+##### BASE -D #####
+elif [[ "$1" = "-d" ]];then shift # BUILD base-d DOCKERFILE
+(
+if [[ "$1" = "-nocache" ]];then NOCACHE="-nocache" && shift;fi
+VERSION=${1:-24.04}
+USER=developer
+if [[ $VERSION = 24.04 ]]; then USER=ubuntu;fi
+if [[ $VERSION = 22.04 ]]; then USER=developer;fi
+
+### THREE STEPS
+# 1) COPY .base-d contants into .user
+cat $SECURE_ASSETS/../docker.master/Dockerfile.user.base-d >$SECURE_ASSETS/../Dockerfile.user
+# 2) BUILD .user
+image --CUSER=$USER --GITUSER=brandonindia-mcs -v $VERSION -t base-d $NOCACHE user || exit 1
+# 3) RUN THIS W/O -d
+d=$(date)
+# $0 $VERSION || exit 1
+echo -e "\t $d: \`image --CUSER=$USER --GITUSER=brandonindia-mcs -v $VERSION -t base-d $NOCACHE user\` (base -d) complete"
+echo now run: $(basename $0) $VERSION
+)
+
+
+
+##### BASE    #####
 else
-# cat $SECURE_ASSETS/../docker.master/Dockerfile.user.base-d >$SECURE_ASSETS/../Dockerfile.user\
-#   && image $@ -t base-d user || exit 1
-cat $SECURE_ASSETS/../docker.master/Dockerfile.user.base >$SECURE_ASSETS/../Dockerfile.user\
-  && image $@ -t base user || exit 1
-echo 'ENTRYPOINT ["/entrypoint.sh"]' >>$SECURE_ASSETS/../Dockerfile.user\
-  && image $@ -t base-vol user || exit 1
+(
+if [[ "$1" = "-nocache" ]];then NOCACHE="-nocache" && shift;fi
+VERSION=${1:-24.04}
+USER=developer
+if [[ $VERSION = 24.04 ]]; then USER=ubuntu;fi
+if [[ $VERSION = 22.04 ]]; then USER=developer;fi
+
+### TWO STEPS
+# 1) COPY .base-d contants into .user
+cat $SECURE_ASSETS/../docker.master/Dockerfile.user.base >$SECURE_ASSETS/../Dockerfile.user
+# 2) BUILD .user
+image --CUSER=$USER --GITUSER=brandonindia-mcs -v $VERSION -t $VERSION $NOCACHE user || exit 1
+d=$(date)
+
+# echo 'ENTRYPOINT ["/entrypoint.sh"]' >>$SECURE_ASSETS/../Dockerfile.user\
+#   && image $@ -t base-vol user || exit 1
+
+echo -e "\n\t $d: \`image --CUSER=$USER --GITUSER=brandonindia-mcs -v $VERSION -t $VERSION $NOCACHE user\` (base) complete"
+)
 fi
 
-echo script \`base\` completed at $(date)
+)

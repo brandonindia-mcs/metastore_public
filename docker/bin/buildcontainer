@@ -181,9 +181,6 @@ for t in ${CUSTOM_TAG[@]};do
   taglist+=$t && log $LINENO APP $APP, t $t
   TAGS+=" -t $APP:$t" && if [ -z "$LABEL" ];then LABEL="-$t";fi;
 done
-# echo TAGS: $TAGS
-# if [ ${#taglist[@]} -eq 0 ];then TAGS="-t latest";fi
-# echo TAGS: $TAGS
 # pause
 
 # for t in ${taglist[@]};do log TAG IS $t;done
@@ -192,6 +189,8 @@ done
 for t in ${CUSTOM_TAG[@]};do
   log $LINENO APP $APP, t $t
   # TAGS+=" -t $DOCKERHUB/$APP:$t -t $DOCKERHUB/$APP:$t-$(date +%Y%m%d)";
+  TAGS+=" -t $APP:latest";
+  TAGS+=" -t $APP:${t}${IMAGE_VERSION}";
   TAGS+=" -t $DOCKERHUB/$APP:$t";
   if [ -n "$IMAGE_VERSION" ];then TAGS+=" -t ${APP}${IMAGE_VERSION} -t ${DOCKERHUB}/${APP}${IMAGE_VERSION}"; fi
 done
@@ -215,7 +214,7 @@ DOCKER_BUILDKIT=1 podman build --rm $NOCACHE\\n
   $TAGS\\n
   -f $DOCKERFILE . || return 1"
 
-### THE ACTUAL EXECUTION BLOCK
+############ THE ACTUAL EXECUTION BLOCK ############
 log $LINENO "$CMD"|sed "s/\\\\n//g" &&\
   if ! $__DEBUG__;then
     eval $(echo "$CMD"|sed "s/\\\\n//g")\
@@ -223,6 +222,8 @@ log $LINENO "$CMD"|sed "s/\\\\n//g" &&\
       && log_s $LINENO "Success container \"$APP\" built with tags: $TAGS"\
       && echo '****************************'\
       && list+=($APP)
+  else
+    log_s $LINENO "__DEBUG__ \"$APP\" built with tags: $TAGS"
   fi
 # DATE TAG LATEST
 podman tag $APP $APP:$(date +%Y%m%d)
