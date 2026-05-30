@@ -2,11 +2,15 @@
 
 ##################
 #
+# image --CUSER=ubuntu --GITUSER=brandonindia-mcs -v 24.04 -t 24.04 user
+# 
 # TRHEE PARTS BELOW
 ##### SEED    #####
+# ex: base ex: base -all
 ##### BASE -D #####
+# ex: base -d 24.04 ex: base -d 22.04
 ##### BASE    #####
-#
+# ex: base 24.04
 ##################
 (
 
@@ -23,7 +27,7 @@ VERSION=${1:-24.04}
 image -v $VERSION -t $VERSION -nocache
 # 2) RUN THIS W/ -d
 d=$(date)
-$0 -d $VERSION || exit 1
+$0 -d -nocache $VERSION || exit 1
 echo -e "\t $d: \`image -v $VERSION -t $VERSION -nocache\` (base -all) complete"
 )
 
@@ -48,6 +52,7 @@ d=$(date)
 # $0 $VERSION || exit 1
 echo -e "\t $d: \`image --CUSER=$USER --GITUSER=brandonindia-mcs -v $VERSION -t base-d $NOCACHE user\` (base -d) complete"
 echo now run: $(basename $0) $VERSION
+$(basename $0) $VERSION
 )
 
 

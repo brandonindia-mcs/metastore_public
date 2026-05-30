@@ -1,3 +1,5 @@
+# image -v 22.04 -t 22.04 # May 10, 2026
+# FROM ubuntu:22.04 AS rootcontainer
 # image -v 24.04 -t 24.04 # May 10, 2026
 # buildcontainer -t minimal seed # 2022
 # buildcontainer --key=nokey-id_rsa -t minimal seed # 2022
