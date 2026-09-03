@@ -1,10 +1,14 @@
-# image -v 22.04 -t 22.04 # May 10, 2026
+# image -v 22.04 -t 22.04 # May 10, 2026 # image -v 22.04 -t 22.04 -nocache && base -d 22.04 && base 22.04
 # FROM ubuntu:22.04 AS rootcontainer
-# image -v 24.04 -t 24.04 # May 10, 2026
 # buildcontainer -t minimal seed # 2022
 # buildcontainer --key=nokey-id_rsa -t minimal seed # 2022
 # FROM mcr.microsoft.com/mirror/docker/library/ubuntu:22.04 AS rootcontainer
+# FROM mcr.microsoft.com/mirror/docker/library/ubuntu:24.04 AS rootcontainer
+# FROM ubuntu:22.04 AS rootcontainer
 FROM ubuntu:24.04 AS rootcontainer
+# image -v 24.04 -t 24.04 -nocache && base -d 24.04 && base 24.04
+
+# FROM ubuntu:questing AS rootcontainer
 CMD [ "/bin/bash" ]
 
 # FROM rootcontainer AS utils0
@@ -23,9 +27,6 @@ RUN apt-get -q install -y\
   gnupg2\
   software-properties-common\
   gnupg-agent
-
-# FROM utils2 AS profile
-RUN apt-get -q update
 
 # FROM profile AS secureroot
 ARG gituser
